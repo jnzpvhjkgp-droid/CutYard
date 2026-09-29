@@ -386,8 +386,8 @@ export function makeItem(type, name, params) {
 }
 
 export function sanitizeProject(p) {
-    if (!isObj(p)) return null;
-    const items = (Array.isArray(p.items) ? p.items : [])
+    if (!isObj(p) || !Array.isArray(p.items)) return null;
+    const items = p.items
         .filter(it => isObj(it) && ITEM_TYPES[it.type])
         .map(it => ({
             id: typeof it.id === 'string' ? it.id : uid('it'),
@@ -397,7 +397,6 @@ export function sanitizeProject(p) {
             params: sanitizeParams(it.type, it.params),
             excluded: isObj(it.excluded) ? Object.fromEntries(Object.entries(it.excluded).filter(([, v]) => v === true)) : {}
         }));
-    if (!items.length) return null;
     return { name: typeof p.name === 'string' && p.name.trim() ? p.name.trim().slice(0, 80) : 'Mitt projekt', items };
 }
 

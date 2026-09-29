@@ -214,7 +214,8 @@ test('sanitizeSettings tillåter 0 och avvisar skräp', () => {
 
 test('sanitizeProject filtrerar ogiltiga objekt', () => {
     assert.equal(sanitizeProject(null), null);
-    assert.equal(sanitizeProject({ items: [{ type: 'hack' }] }), null);
+    assert.equal(sanitizeProject({ name: 'x' }), null);
+    assert.equal(sanitizeProject({ items: [{ type: 'hack' }] }).items.length, 0); // tomt projekt är giltigt
     const p = sanitizeProject({ items: [{ type: 'cabinet', qty: '3', params: { w: '900', evil: 1 } }] });
     assert.equal(p.items[0].qty, 3);
     assert.equal(p.items[0].params.w, 900);

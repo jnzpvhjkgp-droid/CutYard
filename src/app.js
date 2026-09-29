@@ -33,7 +33,7 @@ const state = {
     last: null   // senaste beräkning { col, opt, items }
 };
 const M = () => Object.fromEntries(state.materials.map(m => [m.id, m]));
-const activeItem = () => state.project.items.find(i => i.id === state.activeId) || state.project.items[0];
+const activeItem = () => state.project.items.find(i => i.id === state.activeId) || state.project.items[0]; // undefined om projektet är tomt
 
 // ---------------------------------------------------------------------------
 // Formulärschema per objekttyp. show(p) styr om fältet syns.
@@ -182,25 +182,28 @@ function renderChips() {
     const wrap = $('itemChips');
     wrap.innerHTML = state.project.items.map(it => {
         const on = it.id === state.activeId;
-        return `<button type="button" role="tab" aria-selected="${on}" data-item="${esc(it.id)}" class="chip ${on ? 'chip-active' : 'chip-idle'}">
-            <span class="w-2 h-2 rounded-full shrink-0" style="background:${ACCENT[it.type]}"></span>
-            <span>${esc(it.name)}</span>${it.qty > 1 ? `<span class="num text-xs text-gray-400">×${it.qty}</span>` : ''}</button>`;
+        return `<div class="chip ${on ? 'chip-active' : 'chip-idle'} !p-0 !gap-0">
+            <button type="button" role="tab" aria-selected="${on}" data-item="${esc(it.id)}" class="flex items-center gap-2 pl-3 pr-2 py-2">
+                <span class="w-2 h-2 rounded-full shrink-0" style="background:${ACCENT[it.type]}"></span>
+                <span>${esc(it.name)}</span>${it.qty > 1 ? `<span class="num text-xs text-gray-400">×${it.qty}</span>` : ''}</button>
+            <button type="button" data-remove="${esc(it.id)}" class="self-stretch px-2.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-r-lg border-l border-white/5" title="Ta bort ${esc(it.name)}" aria-label="Ta bort ${esc(it.name)}">✕</button></div>`;
     }).join('');
 }
 
 function selectItem(id) {
     state.activeId = id;
-    store.set(KEYS.active, id);
     const item = activeItem();
+    const empty = !item;
+    $('emptyState').hidden = !empty;
+    $('editorSection').hidden = empty;
+    if (empty) { renderChips(); recompute(); return; }
     state.activeId = item.id;
+    store.set(KEYS.active, item.id);
     $('itemName').value = item.name;
     $('itemQty').value = item.qty;
     $('itemType').textContent = TYPE_LABEL[item.type];
     $('editorPanel').style.setProperty('--accent', ACCENT[item.type]);
     $('editorBar').className = `absolute top-0 left-0 w-full h-1 bg-gradient-to-r ${BAR[item.type]} to-transparent`;
-    $('deleteConfirm').hidden = true;
-    $('btnDelete').disabled = state.project.items.length <= 1;
-    $('btnDelete').classList.toggle('opacity-40', state.project.items.length <= 1);
     viewer.frameKey = '';
     renderChips();
     renderForm();
@@ -224,8 +227,20 @@ let viewer;
 function recompute() {
     const mats = M();
     const item = activeItem();
-    const built = buildItem(item, mats, state.settings);
-    viewer.show(built.parts, item.excluded, `${item.id}|${item.params.w}|${item.params.h}|${item.params.d}`);
+    if (item) {
+        const built = buildItem(item, mats, state.settings);
+        viewer.show(built.parts, item.excluded, `${item.id}|${item.params.w}|${item.params.h}|${item.params.d}`);
+        renderItemStatus(item, built);
+    }
+    const items = !item ? [] : state.scope === 'item' ? [item] : state.project.items;
+    const col = collect(items, mats, state.settings);
+    const opt = optimize(col.rows, mats, state.settings, state.offcuts);
+    state.last = { col, opt, items };
+    renderResults(col, opt, mats);
+    persist();
+}
+
+function renderItemStatus(item, built) {
 
     const warn = $('itemWarn');
     warn.hidden = !built.warnings.length;
@@ -234,18 +249,17 @@ function recompute() {
     info.hidden = !built.info;
     info.textContent = built.info ? built.info.join(' · ') : '';
 
-    const items = state.scope === 'item' ? [item] : state.project.items;
-    const col = collect(items, mats, state.settings);
-    const opt = optimize(col.rows, mats, state.settings, state.offcuts);
-    state.last = { col, opt, items };
-    renderResults(col, opt, mats);
-    persist();
+    // Delar som klickats bort i 3D-vyn (nycklar som inte längre finns räknas inte)
+    const keys = new Set(built.parts.map(p => p.key));
+    const off = Object.keys(item.excluded).filter(k => keys.has(k));
+    $('excludedNote').hidden = !off.length;
+    $('excludedText').textContent = off.length === 1 ? '1 del är borttagen ur kaplistan.' : `${off.length} delar är borttagna ur kaplistan.`;
 }
 let timer;
 const scheduleRecompute = () => { clearTimeout(timer); timer = setTimeout(recompute, 120); };
 
 function renderResults(col, opt, mats) {
-    $('scopeItemName').textContent = activeItem().name;
+    $('scopeItemName').textContent = activeItem()?.name || 'objektet';
     $('statParts').textContent = col.partCount;
     $('statEdge').textContent = col.edgeMeters > 0 ? `${fmt(Math.ceil(col.edgeMeters * 1.1 * 10) / 10)} m` : '–';
     $('statSheets').textContent = opt.sheets;
@@ -281,7 +295,7 @@ function renderResults(col, opt, mats) {
                     <span class="num bg-white/5 text-gray-300 border border-white/10 px-2 py-1 rounded text-xs font-bold whitespace-nowrap">${r.count} st</span>
                 </li>`).join('')}
             </ul>
-        </div>`).join('') : '<p class="text-sm text-gray-500">Inga delar valda. Klicka på delarna i 3D-vyn för att ta med dem igen.</p>';
+        </div>`).join('') : `<p class="text-sm text-gray-500">${activeItem() ? 'Inga delar valda. Klicka på delarna i 3D-vyn för att ta med dem igen.' : 'Lägg till ett objekt för att få en kaplista.'}</p>`;
 
     // Skärscheman
     const resOpt = $('resOpt');
@@ -332,13 +346,15 @@ function renderResults(col, opt, mats) {
 // ---------------------------------------------------------------------------
 // Hjälpare: toast, nedladdning, urklipp
 // ---------------------------------------------------------------------------
-let toastTimer;
-function toast(msg, isError = false) {
+let toastTimer, undoFn = null;
+function toast(msg, isError = false, undo = null) {
+    undoFn = undo;
+    $('toastUndo').hidden = !undo;
     $('toastMsg').textContent = msg;
     $('toastIcon').className = `p-1.5 rounded-full ${isError ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`;
     $('toast').classList.remove('is-hidden');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => $('toast').classList.add('is-hidden'), 3200);
+    toastTimer = setTimeout(() => { $('toast').classList.add('is-hidden'); undoFn = null; }, undo ? 8000 : 3200);
 }
 
 // I en inbäddad Claude-artifact går nedladdningar via värdens API; på en vanlig webbsida via en länk.
@@ -366,6 +382,45 @@ async function download(filename, content, type) {
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     return true;
+}
+
+// Ångra: sparar en kopia av det som kan ändras innan en borttagning eller ersättning.
+function snapshot() {
+    return structuredClone({ project: state.project, materials: state.materials, offcuts: state.offcuts, settings: state.settings, activeId: state.activeId });
+}
+function restore(snap) {
+    Object.assign(state, snap);
+    $('projectName').value = state.project.name;
+    selectItem(state.activeId);
+}
+function withUndo(msg, change) {
+    const snap = snapshot();
+    change();
+    toast(msg, false, () => { restore(snap); toast('Ångrat'); });
+}
+function runUndo() {
+    if (!undoFn) return false;
+    const fn = undoFn;
+    undoFn = null;
+    fn();
+    return true;
+}
+$('toastUndo').addEventListener('click', runUndo);
+document.addEventListener('keydown', e => {
+    if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'z' || e.shiftKey) return;
+    if (e.target.closest?.('input, textarea, select')) return; // låt fälten ha sin egen ångra
+    if (runUndo()) e.preventDefault();
+});
+
+function removeItem(id) {
+    const idx = state.project.items.findIndex(i => i.id === id);
+    if (idx < 0) return;
+    const name = state.project.items[idx].name;
+    withUndo(`${name} borttaget`, () => {
+        state.project.items.splice(idx, 1);
+        const next = state.project.items[Math.min(idx, state.project.items.length - 1)];
+        selectItem(id === state.activeId ? next?.id : state.activeId);
+    });
 }
 
 async function copyText(text, okMsg) {
@@ -428,7 +483,7 @@ function loadProjectData(data) {
     if (data.offcuts) state.offcuts = sanitizeOffcuts(data.offcuts, state.materials);
     state.project = project;
     $('projectName').value = project.name;
-    selectItem(project.items[0].id);
+    selectItem(project.items[0]?.id);
 }
 
 // ---------------------------------------------------------------------------
@@ -520,21 +575,22 @@ $('btnMaterials').addEventListener('click', () => {
 });
 $('btnCloseMaterials').addEventListener('click', () => closeModal('modalMaterials'));
 $('btnSaveMaterials').addEventListener('click', () => {
-    state.materials = sanitizeMaterials(draftMats);
-    state.offcuts = sanitizeOffcuts(draftOffcuts, state.materials);
     closeModal('modalMaterials');
-    renderForm();
-    recompute();
-    toast('Materialbiblioteket sparat');
+    withUndo('Materialbiblioteket sparat', () => {
+        state.materials = sanitizeMaterials(draftMats);
+        state.offcuts = sanitizeOffcuts(draftOffcuts, state.materials);
+        if (activeItem()) renderForm();
+        recompute();
+    });
 });
 
 $('btnSaveOffcuts').addEventListener('click', () => {
     const { opt } = state.last;
     const used = new Set(opt.offcutsUsed);
-    const before = state.offcuts.length;
-    state.offcuts = state.offcuts.filter(o => !used.has(o.id)).concat(opt.newOffcuts.map(o => ({ id: uid('off'), ...o })));
-    recompute();
-    toast(`Spillager uppdaterat: ${used.size} förbrukade, ${opt.newOffcuts.length} nya (${before} → ${state.offcuts.length})`);
+    withUndo(`Spillager uppdaterat: ${used.size} förbrukade, ${opt.newOffcuts.length} nya`, () => {
+        state.offcuts = state.offcuts.filter(o => !used.has(o.id)).concat(opt.newOffcuts.map(o => ({ id: uid('off'), ...o })));
+        recompute();
+    });
 });
 
 // ---------------------------------------------------------------------------
@@ -557,7 +613,12 @@ $('itemName').addEventListener('input', e => { activeItem().name = e.target.valu
 $('itemQty').addEventListener('input', e => { const v = Math.round(+e.target.value); if (v >= 1) { activeItem().qty = Math.min(999, v); renderChips(); scheduleRecompute(); } });
 $('projectName').addEventListener('input', e => { state.project.name = e.target.value.trim() || 'Mitt projekt'; persist(); });
 
-$('itemChips').addEventListener('click', e => { const id = e.target.closest('[data-item]')?.dataset.item; if (id) selectItem(id); });
+$('itemChips').addEventListener('click', e => {
+    const rm = e.target.closest('[data-remove]')?.dataset.remove;
+    if (rm) { removeItem(rm); return; }
+    const id = e.target.closest('[data-item]')?.dataset.item;
+    if (id) selectItem(id);
+});
 document.querySelectorAll('[data-add]').forEach(b => b.addEventListener('click', () => addItem(b.dataset.add)));
 
 $('btnDuplicate').addEventListener('click', () => {
@@ -567,18 +628,10 @@ $('btnDuplicate').addEventListener('click', () => {
     selectItem(copy.id);
     toast('Objektet duplicerat');
 });
-$('btnDelete').addEventListener('click', () => {
-    if (state.project.items.length <= 1) return;
-    $('deleteName').textContent = activeItem().name;
-    $('deleteConfirm').hidden = false;
-    $('btnDeleteNo').focus();
-});
-$('btnDeleteNo').addEventListener('click', () => { $('deleteConfirm').hidden = true; });
-$('btnDeleteYes').addEventListener('click', () => {
-    const idx = state.project.items.indexOf(activeItem());
-    const [removed] = state.project.items.splice(idx, 1);
-    selectItem(state.project.items[Math.max(0, idx - 1)].id);
-    toast(`${removed.name} borttaget`);
+$('btnDelete').addEventListener('click', () => removeItem(activeItem().id));
+$('btnRestoreParts').addEventListener('click', () => {
+    const item = activeItem();
+    withUndo('Alla delar är med i kaplistan igen', () => { item.excluded = {}; recompute(); });
 });
 
 $('btnShowResults').addEventListener('click', () => $('resultSection').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }));
@@ -593,11 +646,10 @@ document.querySelectorAll('[data-scope]').forEach(b => b.addEventListener('click
 // Nytt projekt
 $('btnNew').addEventListener('click', () => openModal('modalNew'));
 $('btnNewCancel').addEventListener('click', () => closeModal('modalNew'));
-$('btnNewExample').addEventListener('click', () => { closeModal('modalNew'); loadProjectData({ project: exampleProject() }); toast('Exempelprojekt laddat'); });
+$('btnNewExample').addEventListener('click', () => { closeModal('modalNew'); withUndo('Exempelprojekt laddat', () => loadProjectData({ project: exampleProject() })); });
 $('btnNewEmpty').addEventListener('click', () => {
     closeModal('modalNew');
-    loadProjectData({ project: { name: 'Nytt projekt', items: [makeItem('cabinet', 'Skåp 1', { fronts: 'none' })] } });
-    toast('Nytt projekt skapat');
+    withUndo('Nytt projekt skapat', () => loadProjectData({ project: { name: 'Nytt projekt', items: [makeItem('cabinet', 'Skåp 1', { fronts: 'none' })] } }));
 });
 
 // Spara/öppna
@@ -610,7 +662,7 @@ $('fileUpload').addEventListener('change', e => {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = ev => {
-        try { loadProjectData(JSON.parse(ev.target.result)); toast(`${state.project.name} öppnat`); }
+        try { const data = JSON.parse(ev.target.result); withUndo('Projektet öppnat', () => loadProjectData(data)); }
         catch { toast('Filen kunde inte läsas. Välj en giltig .cutyard-fil.', true); }
         finally { $('fileUpload').value = ''; }
     };
