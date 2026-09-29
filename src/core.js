@@ -21,7 +21,7 @@ export const DEFAULT_SETTINGS = {
     sheetL: 2440,       // skivformat (mm)
     sheetW: 1220,
     price: 495,         // pris per skiva (kr)
-    prices: {},         // pris per tjocklek, t.ex. { "18": 649 }
+    sheets: {},         // eget format/pris per tjocklek, t.ex. { "19": { L: 2800, W: 2070, price: 649 } }
     reveal: 1.5,        // spel mellan front och stommens ytterkant (mm)
     frontGap: 3,        // spel mellan två fronter (mm)
     minOffcutL: 400,    // minsta spillbit som sparas (mm)
@@ -40,7 +40,7 @@ export function sanitizeSettings(s) {
     const out = { ...DEFAULT_SETTINGS };
     if (!isObj(s)) return out;
     for (const [k, def] of Object.entries(DEFAULT_SETTINGS)) {
-        if (k === 'prices') continue;
+        if (k === 'sheets') continue;
         if (typeof def === 'boolean') out[k] = !!s[k];
         else if (typeof def === 'number') { const v = +s[k]; if (s[k] !== '' && s[k] != null && Number.isFinite(v) && v >= 0) out[k] = v; }
         else if (typeof s[k] === 'string') out[k] = s[k];
@@ -50,8 +50,14 @@ export function sanitizeSettings(s) {
     out.trim = clamp(out.trim, 0, 50);
     if (out.sheetL < 300) out.sheetL = DEFAULT_SETTINGS.sheetL;
     if (out.sheetW < 300) out.sheetW = DEFAULT_SETTINGS.sheetW;
-    out.prices = {};
-    if (isObj(s.prices)) for (const [k, v] of Object.entries(s.prices)) if (Number.isFinite(+k) && +k > 0 && v !== '' && v != null && Number.isFinite(+v) && +v >= 0) out.prices[thickKey(+k)] = +v;
+    out.sheets = {};
+    const okNum = (v, min) => v !== '' && v != null && Number.isFinite(+v) && +v >= min;
+    const put = (k, field, v, min) => {
+        if (!(Number.isFinite(+k) && +k > 0) || !okNum(v, min)) return;
+        (out.sheets[thickKey(+k)] ??= {})[field] = +v;
+    };
+    if (isObj(s.sheets)) for (const [k, o] of Object.entries(s.sheets)) if (isObj(o)) { put(k, 'L', o.L, 300); put(k, 'W', o.W, 300); put(k, 'price', o.price, 0); }
+    if (isObj(s.prices)) for (const [k, v] of Object.entries(s.prices)) if (out.sheets[thickKey(+k)]?.price == null) put(k, 'price', v, 0); // äldre format
     return out;
 }
 
@@ -66,8 +72,10 @@ export function shopUrl(settings, query) {
 // ---------------------------------------------------------------------------
 export const thickKey = t => String(round1(t));
 export const thickLabel = t => `${fmt(t)} mm`;
-export const sheetPrice = (S, t) => S.prices?.[thickKey(t)] ?? S.price;
-export const sheetFor = (S, t) => ({ t, L: S.sheetL, W: S.sheetW, price: sheetPrice(S, t) });
+export function sheetFor(S, t) {
+    const own = S.sheets?.[thickKey(t)] || {};
+    return { t, L: own.L ?? S.sheetL, W: own.W ?? S.sheetW, price: own.price ?? S.price, custom: own };
+}
 
 export function sanitizeOffcuts(list) {
     if (!Array.isArray(list)) return [];
@@ -81,14 +89,23 @@ export function sanitizeOffcuts(list) {
 // ---------------------------------------------------------------------------
 const range = (a, b, step) => { const r = []; for (let x = a; x <= b; x += step) r.push(x); return r; };
 
+// Produktsidor hos tillverkarna (kontrollerade adresser).
+export const MAKER_LINKS = {
+    movento: { label: 'Blum', url: 'https://www.blum.com/se/sv/products/runnersystems/movento/overview/', mount: 'https://www.blum.com/se/sv/products/runnersystems/movento/assembly/' },
+    tandem: { label: 'Blum', url: 'https://www.blum.com/se/sv/products/runnersystems/tandem/overview/', mount: 'https://www.blum.com/se/sv/products/runnersystems/tandem/assembly/' },
+    actro: { label: 'Hettich', url: 'https://www.hettich.com/en-us/products/runner-systems/actro-5d' },
+    clipTopBlumotion: { label: 'Blum', url: 'https://www.blum.com/se/sv/products/hingesystems/clip-top-blumotion/assembly/' },
+    clipTop: { label: 'Blum', url: 'https://www.blum.com/se/sv/products/hingesystems/clip-top/overview/' }
+};
+
 export const SLIDES = [
     { id: 'ball', name: 'Kullagerskenor, sidomonterade', clearance: 12.7, mount: 'side', lengths: range(250, 650, 50), lengthOffset: 0, depthMargin: 5, bottomRecess: 12, maxSide: null,
       note: 'Lådlängd = skenans längd. 12,7 mm spel per sida.' },
-    { id: 'blum-movento', name: 'Blum MOVENTO', clearance: 5, mount: 'under', lengths: [250, 270, 300, 350, 400, 450, 500, 550, 600, 650, 700, 750], lengthOffset: -10, depthMargin: 3, bottomRecess: 13, maxSide: 16,
+    { id: 'blum-movento', name: 'Blum MOVENTO', clearance: 5, mount: 'under', lengths: [250, 270, 300, 350, 400, 450, 500, 550, 600, 650, 700, 750], lengthOffset: -10, depthMargin: 3, bottomRecess: 13, maxSide: 16, link: MAKER_LINKS.movento,
       note: 'Lådans innerbredd = öppning − 42 mm vid 16 mm sidor. Lådlängd = NL − 10 mm. Bakstycket behöver urtag för skenan.' },
-    { id: 'blum-tandem', name: 'Blum TANDEM', clearance: 5, mount: 'under', lengths: [250, 270, 300, 350, 400, 450, 500, 550, 600], lengthOffset: -10, depthMargin: 3, bottomRecess: 13, maxSide: 16,
+    { id: 'blum-tandem', name: 'Blum TANDEM', clearance: 5, mount: 'under', lengths: [250, 270, 300, 350, 400, 450, 500, 550, 600, 650, 700, 750], lengthOffset: -10, depthMargin: 3, bottomRecess: 13, maxSide: 16, link: MAKER_LINKS.tandem,
       note: 'Lådans innerbredd = öppning − 42 mm vid 16 mm sidor. Lådlängd = NL − 10 mm. Bakstycket behöver urtag för skenan.' },
-    { id: 'hettich-actro', name: 'Hettich Actro 5D', clearance: 5, mount: 'under', lengths: [270, 300, 350, 400, 450, 500, 550, 600], lengthOffset: -10, depthMargin: 3, bottomRecess: 13, maxSide: 16,
+    { id: 'hettich-actro', name: 'Hettich Actro 5D', clearance: 5, mount: 'under', lengths: [270, 300, 350, 400, 450, 500, 550, 600], lengthOffset: -10, depthMargin: 3, bottomRecess: 13, maxSide: 16, link: MAKER_LINKS.actro,
       note: 'Lådans innerbredd = öppning − 42 mm vid 16 mm sidor. Kontrollera lådlängd mot Hettichs anvisning.' },
     { id: 'custom', name: 'Egen skena (ange spel)', clearance: null, mount: 'side', lengths: null, lengthOffset: 0, depthMargin: 10, bottomRecess: 12, maxSide: null,
       note: 'Lådlängd = skåpets innerdjup − 10 mm.' }
@@ -157,15 +174,62 @@ export function hingePositions(h, n = hingeCount(h)) {
 // ---------------------------------------------------------------------------
 const NO_BAND = { l: 0, w: 0 };
 
-function hw(key, name, qty, unit, query) { return { key, name, qty, unit, query: query || name }; }
+function hw(key, name, qty, unit, query, link = null) { return { key, name, qty, unit, query: query || name, link }; }
 
-export function shakerDoorParts({ w, h, frame, tenon, frameT, panelT, prefix = '', origin = [0, 0, 0] }) {
+// ---------------------------------------------------------------------------
+// Profiler för ram och fyllning, och vilka fräsar som ger dem.
+// Måtten varierar mellan fabrikat – tapp/spårdjup ska stämma med den fräsats man har.
+// ---------------------------------------------------------------------------
+const bit = (key, name, use, query) => ({ key, name, use, query });
+export const FRAME_PROFILES = {
+    square: { name: 'Rak (klassisk shaker)', joint: 'Not och tapp',
+        desc: 'Rak innerkant utan profil. Fyllningen sitter i ett spår och railsen har tappar som går in i spåret på stilesen.',
+        bits: [bit('bit-slot6', 'Skivnotfräs 6 mm med kullager', 'Spår för fyllningen i stiles och rails', 'skivnotfräs 6 mm'),
+               bit('bit-straight', 'Rak fräs, Ø 12–19 mm', 'Tappar på railsens ändar (kan också sågas på bordsåg)', 'rak fräs 12 mm')] },
+    'shaker-cope': { name: 'Rak med kontraprofil', joint: 'Kontraprofil (cope & stick)',
+        desc: 'Samma raka utseende, men fogen fräses med en kontraprofilsats. Railsens ändar får en motprofil som griper in i spåret, så det behövs inga separata tappar.',
+        bits: [bit('bit-cope-shaker', 'Kontraprofilsats, rak shaker-profil', 'Spår längs kanterna och motprofil på railsens ändar', 'kontraprofilfräs shaker')] },
+    ogee: { name: 'Ogee', joint: 'Kontraprofil (cope & stick)',
+        desc: 'S-formad profil längs ramens innerkant. Klassisk och dekorativ.',
+        bits: [bit('bit-cope-ogee', 'Kontraprofilsats, ogee', 'Profil och spår längs kanterna, motprofil på railsens ändar', 'kontraprofilfräs ogee')] },
+    roundover: { name: 'Rundad kant', joint: 'Kontraprofil (cope & stick)',
+        desc: 'Mjukt rundad innerkant. Diskret och tålig mot slag.',
+        bits: [bit('bit-cope-round', 'Kontraprofilsats, rundad (kvartsrund)', 'Profil och spår längs kanterna, motprofil på railsens ändar', 'kontraprofilfräs rundad')] },
+    bevel: { name: 'Fas', joint: 'Kontraprofil (cope & stick)',
+        desc: 'Rak fas längs innerkanten. Enkel och modern.',
+        bits: [bit('bit-cope-bevel', 'Kontraprofilsats, fas', 'Profil och spår längs kanterna, motprofil på railsens ändar', 'kontraprofilfräs fas')] }
+};
+export const PANEL_STYLES = {
+    flat: { name: 'Platt', minT: 3, maxT: 12,
+        desc: 'Tunn skiva, t.ex. 6 mm MDF eller plywood, som sätts direkt i spåret. Ingen fräsning.', bits: [] },
+    'raised-bevel': { name: 'Upphöjd, rak fas', minT: 15, maxT: 25,
+        desc: 'Tjockare fyllning där kanten fasas ned till en tunga som passar i spåret.',
+        bits: [bit('bit-raise-bevel', 'Fältfräs (spegelfräs), rak fas', 'Fasar fyllningens kanter ned till spårets bredd', 'fältfräs rak fas')] },
+    'raised-cove': { name: 'Upphöjd, hålkäl', minT: 15, maxT: 25,
+        desc: 'Upphöjd fyllning med konkav, mjuk övergång mot kanten.',
+        bits: [bit('bit-raise-cove', 'Fältfräs (spegelfräs), hålkäl', 'Fräser en hålkäl ned till spårets bredd', 'fältfräs hålkäl')] },
+    'raised-ogee': { name: 'Upphöjd, ogee', minT: 15, maxT: 25,
+        desc: 'Upphöjd fyllning med S-formad kant. Passar ihop med ogee-ram.',
+        bits: [bit('bit-raise-ogee', 'Fältfräs (spegelfräs), ogee', 'Fräser en S-profil ned till spårets bredd', 'fältfräs ogee')] }
+};
+export const RAISED_PANEL_NOTE = 'Fältfräsar har stor diameter, ofta 80–90 mm. Använd bordsfräs och tillverkarens varvtal.';
+
+export function profileTools(profileId, panelId) {
+    const fp = FRAME_PROFILES[profileId] || FRAME_PROFILES.square;
+    const ps = PANEL_STYLES[panelId] || PANEL_STYLES.flat;
+    return [...fp.bits, ...ps.bits];
+}
+
+export function shakerDoorParts({ w, h, frame, tenon, frameT, panelT, profile = 'square', panelStyle = 'flat', prefix = '', origin = [0, 0, 0] }) {
     const f = frame, tF = frameT, tP = panelT;
     const [ox, oy, oz] = origin;
     const p = prefix ? prefix + ': ' : '';
     const warnings = [];
     if (w <= 2 * f + 20 || h <= 2 * f + 20) warnings.push(`${prefix || 'Dörren'}: ramen är för bred för dörrens mått.`);
-    if (tP >= tF) warnings.push(`${prefix || 'Dörren'}: fyllningen är lika tjock som ramen.`);
+    const ps = PANEL_STYLES[panelStyle] || PANEL_STYLES.flat;
+    if (tP < ps.minT) warnings.push(`${prefix || 'Dörren'}: en fyllning av typen "${ps.name.toLowerCase()}" behöver vara minst ${ps.minT} mm.`);
+    else if (tP > ps.maxT) warnings.push(`${prefix || 'Dörren'}: ${fmt(tP)} mm är tjockt för en ${ps.name.toLowerCase()} fyllning (vanligt är ${ps.minT}–${ps.maxT} mm).`);
+    if (panelStyle === 'flat' && tP >= tF) warnings.push(`${prefix || 'Dörren'}: fyllningen är lika tjock som ramen.`);
     const railL = w - 2 * f + 2 * tenon;
     const pw = Math.max(1, w - 2 * f), ph = Math.max(1, h - 2 * f);
     const common = { t: tF, grain: true, band: NO_BAND };
@@ -177,7 +241,7 @@ export function shakerDoorParts({ w, h, frame, tenon, frameT, panelT, prefix = '
         { key: `${p}panel`, name: `${p}Spegelfyllning`, l: h - 2 * f + 2 * tenon - 2, w: w - 2 * f + 2 * tenon - 2, t: tP, grain: true, band: NO_BAND,
           geo: { size: [pw, ph, tP], pos: [ox, oy, oz], role: 'panel' } }
     ];
-    return { parts, warnings, thick: tF };
+    return { parts, warnings, thick: tF, tools: profileTools(profile, panelStyle) };
 }
 
 function drawerBoxParts(box, { h, sideT, botT, prefix, origin }) {
@@ -199,17 +263,17 @@ function drawerBoxParts(box, { h, sideT, botT, prefix, origin }) {
 function slideHardware(slide, nl, pairs, clr) {
     if (slide.id === 'custom' || nl == null) return hw('slide-custom', `Lådskenor (${fmt(clr)} mm spel/sida)`, pairs, 'par', 'lådskenor');
     const name = slide.id === 'ball' ? `Kullagerskenor fullt utdrag ${nl} mm` : `${slide.name} ${nl} mm`;
-    return hw(`slide-${slide.id}-${nl}`, name, pairs, 'par', name);
+    return hw(`slide-${slide.id}-${nl}`, name, pairs, 'par', name, slide.link || null);
 }
 
 export const DEFAULT_PARAMS = {
     // Tjocklekar i mm. backT = 0 betyder inget bakstycke.
     cabinet: { w: 600, h: 720, d: 560, carcassT: 16, backT: 3, shelves: 1, edgeBand: true,
                fronts: 'drawers', doorCount: 'auto', drawerCount: 3, frontT: 19, frontStyle: 'flat', frontBand: false,
-               frame: 60, tenon: 10, panelT: 6, slideId: 'blum-movento', clearance: 12.7,
+               frame: 60, tenon: 10, panelT: 6, profile: 'square', panelStyle: 'flat', slideId: 'blum-movento', clearance: 12.7,
                drawerSideT: 15, drawerBotT: 4, groove: 6 },
     drawer: { w: 564, h: 150, d: 500, sideT: 15, botT: 4, slideId: 'ball', clearance: 12.7, groove: 6 },
-    shaker: { w: 400, h: 800, frame: 60, tenon: 10, frameT: 19, panelT: 6, hinges: true }
+    shaker: { w: 400, h: 800, frame: 60, tenon: 10, frameT: 19, panelT: 6, profile: 'square', panelStyle: 'flat', hinges: true }
 };
 
 export function buildCabinet(p, S) {
@@ -257,7 +321,7 @@ export function buildCabinet(p, S) {
 
     const addFront = (key, name, fw, fh, x, y, grainAlongWidth) => {
         if (p.frontStyle === 'shaker') {
-            const res = shakerDoorParts({ w: fw, h: fh, frame: p.frame, tenon: p.tenon, frameT: tF, panelT: p.panelT, prefix: name, origin: [x, y, fz] });
+            const res = shakerDoorParts({ w: fw, h: fh, frame: p.frame, tenon: p.tenon, frameT: tF, panelT: p.panelT, profile: p.profile, panelStyle: p.panelStyle, prefix: name, origin: [x, y, fz] });
             res.parts.forEach(pt => { pt.geo.role = pt.geo.role === 'panel' ? 'frontPanel' : 'front'; });
             parts.push(...res.parts);
             warnings.push(...res.warnings);
@@ -278,8 +342,8 @@ export function buildCabinet(p, S) {
             drillings.push({ door: name, w: dw, h: dh, side: n === 2 && i === 1 ? 'höger' : 'vänster', holes: hingePositions(dh, count), ...HINGE });
         }
         if (p.frontStyle === 'shaker' && p.frame < HINGE.edgeDist + HINGE.cupDia / 2 + 5) warnings.push(`Rambredden (${fmt(p.frame)} mm) är för smal för 35 mm gångjärnskopp. Välj minst ${HINGE.edgeDist + HINGE.cupDia / 2 + 5} mm.`);
-        hardware.push(hw('hinge-cliptop-110', 'Blum CLIP top BLUMOTION 110° gångjärn', count * n, 'st'));
-        hardware.push(hw('hinge-plate', 'Monteringsplatta för gångjärn', count * n, 'st', 'Blum CLIP monteringsplatta'));
+        hardware.push(hw('hinge-cliptop-110', 'Blum CLIP top BLUMOTION 110° gångjärn', count * n, 'st', null, MAKER_LINKS.clipTopBlumotion));
+        hardware.push(hw('hinge-plate', 'Blum CLIP monteringsplatta', count * n, 'st', null, MAKER_LINKS.clipTop));
         hardware.push(hw('handle', 'Handtag eller knopp', n, 'st', 'möbelhandtag'));
     } else if (p.fronts === 'drawers') {
         const n = clamp(Math.round(p.drawerCount) || 1, 1, 8);
@@ -302,7 +366,8 @@ export function buildCabinet(p, S) {
         hardware.push(slideHardware(slide, nl, n, clr));
         hardware.push(hw('handle', 'Handtag eller knopp', n, 'st', 'möbelhandtag'));
     }
-    return { parts, hardware, warnings, drillings };
+    const tools = p.fronts !== 'none' && p.frontStyle === 'shaker' ? profileTools(p.profile, p.panelStyle) : [];
+    return { parts, hardware, warnings, drillings, tools };
 }
 
 export function buildDrawer(p) {
@@ -319,16 +384,16 @@ export function buildDrawer(p) {
 }
 
 export function buildShaker(p) {
-    const res = shakerDoorParts({ w: p.w, h: p.h, frame: p.frame, tenon: p.tenon, frameT: p.frameT, panelT: p.panelT });
+    const res = shakerDoorParts({ w: p.w, h: p.h, frame: p.frame, tenon: p.tenon, frameT: p.frameT, panelT: p.panelT, profile: p.profile, panelStyle: p.panelStyle });
     const hardware = [], drillings = [];
     if (p.hinges) {
         const n = hingeCount(p.h);
-        hardware.push(hw('hinge-cliptop-110', 'Blum CLIP top BLUMOTION 110° gångjärn', n, 'st'));
-        hardware.push(hw('hinge-plate', 'Monteringsplatta för gångjärn', n, 'st', 'Blum CLIP monteringsplatta'));
+        hardware.push(hw('hinge-cliptop-110', 'Blum CLIP top BLUMOTION 110° gångjärn', n, 'st', null, MAKER_LINKS.clipTopBlumotion));
+        hardware.push(hw('hinge-plate', 'Blum CLIP monteringsplatta', n, 'st', null, MAKER_LINKS.clipTop));
         drillings.push({ door: 'Dörr', w: p.w, h: p.h, side: 'vänster', holes: hingePositions(p.h, n), ...HINGE });
         if (p.frame < HINGE.edgeDist + HINGE.cupDia / 2 + 5) res.warnings.push(`Rambredden (${fmt(p.frame)} mm) är för smal för 35 mm gångjärnskopp. Välj minst ${HINGE.edgeDist + HINGE.cupDia / 2 + 5} mm.`);
     }
-    return { parts: res.parts, hardware, warnings: res.warnings, drillings };
+    return { parts: res.parts, hardware, warnings: res.warnings, drillings, tools: res.tools };
 }
 
 export const ITEM_TYPES = {
@@ -401,7 +466,7 @@ export function buildItem(item, S) {
  * Samlar alla delar i projektet (eller ett objekt) till en grupperad, numrerad kaplista.
  */
 export function collect(items, S) {
-    const pieces = [], hwMap = new Map(), warnings = [], drillings = [];
+    const pieces = [], hwMap = new Map(), warnings = [], drillings = [], toolMap = new Map();
     for (const item of items) {
         const res = buildItem(item, S);
         res.warnings.forEach(w => warnings.push(`${item.name}: ${w}`));
@@ -410,6 +475,7 @@ export function collect(items, S) {
             if (ex) ex.qty += h.qty * item.qty; else hwMap.set(h.key, { ...h, qty: h.qty * item.qty });
         });
         res.drillings.forEach(dr => drillings.push({ ...dr, item: item.name, count: item.qty }));
+        (res.tools || []).forEach(t => { const ex = toolMap.get(t.key); if (ex) { if (!ex.items.includes(item.name)) ex.items.push(item.name); } else toolMap.set(t.key, { ...t, items: [item.name] }); });
         for (const part of res.parts) {
             if (item.excluded[part.key]) continue;
             const band = part.band || NO_BAND;
@@ -438,6 +504,7 @@ export function collect(items, S) {
         hardware: [...hwMap.values()],
         warnings,
         drillings,
+        tools: [...toolMap.values()],
         edgeMeters: rows.reduce((a, r) => a + r.edgeLen, 0) / 1000,
         partCount: rows.reduce((a, r) => a + r.count, 0)
     };

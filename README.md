@@ -9,9 +9,10 @@ Allt körs i webbläsaren och fungerar offline när sidan har laddats en gång.
 - **Skåp med fronter** – dörrar (släta eller shaker) med spel och gångjärnsborrschema, eller lådfronter med färdigräknade lådlådor.
 - **Förinställda lådskenor** – kullagerskenor, Blum MOVENTO, Blum TANDEM, Hettich Actro 5D eller eget spel. Måtten är riktvärden; kontrollera mot tillverkarens monteringsanvisning.
 - **Giljotinoptimering** – alla snitt går rakt igenom skivan, med sågspalt och kantputs. Flera sorteringar och delningsregler provas och den billigaste layouten väljs.
-- **Fria tjocklekar och spillager** – alla tjocklekar skrivs in direkt i formuläret. Delar med samma tjocklek optimeras på samma skivor; skivformat och pris ställs in under Inställningar och priset kan ändras per tjocklek. Spillbitar sparas och används före nya skivor.
+- **Fria tjocklekar och spillager** – alla tjocklekar skrivs in direkt i formuläret. Delar med samma tjocklek optimeras på samma skivor; skivformat och pris ställs in under Inställningar och kan ändras per tjocklek, t.ex. 2800 × 2070 för en viss skiva. Spillbitar sparas och används före nya skivor.
 - **Utskrift/PDF** – kaplista, beslag, borrschema, skärscheman med delnummer och etiketter med QR-kod.
-- **Beslagslista med köplänkar** – Prisjakt, Google Shopping eller en egen länkmall (t.ex. med affiliate-parameter).
+- **Profiler för shaker-dörrar** – ramprofiler (rak, kontraprofil, ogee, rundad, fas) och fyllningar (platt eller upphöjd) med tvärsnittsskiss och vilka fräsar som ger profilen.
+- **Beslagslista med länkar** – Blum- och Hettich-beslag länkar till tillverkarens produktsida. Köplänkar via Prisjakt, Google Shopping eller en egen länkmall (t.ex. med affiliate-parameter).
 - **Ångra** – objekt tas bort direkt med ✕ i projektlistan och kan ångras från notisen eller med Ctrl/Cmd+Z. Samma gäller spillager, nytt och öppnat projekt.
 - **Export** – CSV med svenska decimaler och kopiering direkt till Excel. Projekt sparas som `.cutyard`-filer.
 - **PWA** – kan installeras och fungerar offline. Inga CDN:er; typsnitt och bibliotek ligger lokalt.

@@ -50,6 +50,7 @@ input[type=number] { -moz-appearance: textfield; }
     .lbl { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
     .fld { @apply w-full min-w-0 rounded-lg px-3 py-2 text-[14px] transition-colors; background: var(--bg); border: 1px solid var(--line-strong); color: var(--fg); }
     .fld:hover { border-color: rgba(255,255,255,0.2); }
+    .fld::placeholder { color: var(--faint); opacity: 1; }
     .fld:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
     select.fld { @apply pr-8; }
     .fld-unit { position: relative; }

@@ -29,6 +29,11 @@ export function buildPrint(el, { projectName, scopeLabel, col, opt, withLabels }
         col.hardware.forEach(x => h.push(`<tr><td>${esc(x.name)}</td><td class="p-num">${x.qty}</td><td>${esc(x.unit)}</td></tr>`));
         h.push('</tbody></table>');
     }
+    if (col.tools?.length) {
+        h.push('<h2>Fräsar</h2><table><thead><tr><th>Fräs</th><th>Används till</th><th>Objekt</th></tr></thead><tbody>');
+        col.tools.forEach(t => h.push(`<tr><td>${esc(t.name)}</td><td>${esc(t.use)}</td><td>${esc(t.items.join(', '))}</td></tr>`));
+        h.push('</tbody></table>');
+    }
     if (col.drillings.length) {
         h.push('<h2>Borrschema gångjärn</h2><div style="font-size:8.5pt;margin-bottom:1mm">Kopphål Ø35 × 13 mm, centrum 22,5 mm från dörrkanten. Mått från dörrens överkant.</div><table><thead><tr><th>Objekt</th><th>Dörr</th><th>Antal</th><th>Dörrmått</th><th>Sida</th><th>Hål (mm)</th></tr></thead><tbody>');
         col.drillings.forEach(d => h.push(`<tr><td>${esc(d.item)}</td><td>${esc(d.door)}</td><td class="p-num">${d.count}</td><td class="p-num">${fmt(d.h)} × ${fmt(d.w)}</td><td>${esc(d.side)}</td><td class="p-num">${d.holes.map(fmt).join(' · ')}</td></tr>`));

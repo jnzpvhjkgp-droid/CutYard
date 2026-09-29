@@ -1,6 +1,6 @@
 // Service worker: gör CutYard användbar offline (t.ex. i verkstaden utan täckning).
 // Höj VERSION när filerna ändras så att gamla cachar rensas.
-const VERSION = 'cutyard-v5';
+const VERSION = 'cutyard-v6';
 const SHELL = [
     './',
     'index.html',
@@ -20,6 +20,7 @@ const SHELL = [
     'src/viewer.js',
     'src/draw.js',
     'src/print.js',
+    'src/profiles.js',
     'vendor/three.min.js',
     'vendor/OrbitControls.js',
     'vendor/qrcode.mjs'

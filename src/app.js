@@ -1,12 +1,13 @@
 // CutYard – gränssnitt. All beräkning sker i core.js.
 import {
     fmt, fmtKr, uid, DEFAULT_SETTINGS, SHOPS, sanitizeSettings, shopUrl,
-    thickKey, thickLabel, sanitizeOffcuts,
+    thickKey, thickLabel, sanitizeOffcuts, sheetFor, FRAME_PROFILES, PANEL_STYLES, RAISED_PANEL_NOTE, profileTools,
     SLIDES, slideById, ITEM_TYPES, DEFAULT_PARAMS, makeItem, sanitizeProject, exampleProject,
     buildItem, collect, optimize, buildCsv
 } from './core.js';
 import { Viewer } from './viewer.js';
 import { sheetCanvas } from './draw.js';
+import { profileSvg } from './profiles.js';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -44,6 +45,25 @@ const n = (key, label, o = {}) => ({ kind: 'num', key, label, unit: 'mm', ...o }
 const sel = (key, label, options, o = {}) => ({ kind: 'select', key, label, options, ...o });
 const chk = (key, label, o = {}) => ({ kind: 'check', key, label, ...o });
 const note = (text, o = {}) => ({ kind: 'note', text, ...o });
+const html = (render, o = {}) => ({ kind: 'html', render, ...o });
+const extLink = (url, text) => `<a href="${esc(url)}" target="_blank" rel="noopener" class="whitespace-nowrap hover:underline" style="color: var(--accent)">${esc(text)} ↗</a>`;
+const slideNote = p => { const s = slideById(p.slideId); return `${esc(s.note)}${s.link ? ` ${extLink(s.link.url, `Mer hos ${s.link.label}`)}` : ''}`; };
+const profileOptions = Object.entries(FRAME_PROFILES).map(([k, v]) => [k, v.name]);
+const panelOptions = Object.entries(PANEL_STYLES).map(([k, v]) => [k, v.name]);
+
+// Förhandsvisning av vald profil med fräsarna som behövs
+function profilePreview(p) {
+    const fp = FRAME_PROFILES[p.profile] || FRAME_PROFILES.square;
+    const ps = PANEL_STYLES[p.panelStyle] || PANEL_STYLES.flat;
+    const tools = profileTools(p.profile, p.panelStyle);
+    return `<div class="rounded-lg p-3 space-y-3" style="background: var(--bg); border: 1px solid var(--line);">
+        ${profileSvg(p.profile, p.panelStyle)}
+        <div class="text-[12px] muted">${esc(fp.joint)} · fyllning ${esc(ps.minT)}–${esc(ps.maxT)} mm</div>
+        <ul class="space-y-1.5 text-[12px]">${tools.map(t => `<li><span>${esc(t.name)}</span><span class="faint"> – ${esc(t.use)}</span></li>`).join('')}</ul>
+        ${p.panelStyle !== 'flat' ? `<p class="text-[12px]" style="color: var(--warn)">${esc(RAISED_PANEL_NOTE)}</p>` : ''}
+        <button type="button" class="btn-line !py-1.5 !text-[12px]" data-open-profiles>Visa alla profiler och fräsar</button>
+    </div>`;
+}
 const group = (title, rows, o = {}) => ({ title, rows, ...o });
 const slideOptions = SLIDES.map(s => [s.id, s.name]);
 
@@ -65,13 +85,15 @@ const SCHEMA = {
              n('drawerCount', 'Antal', { min: 1, max: 8, int: true, unit: 'st', show: isDrawers })],
             [sel('frontStyle', 'Stil', [['flat', 'Slät'], ['shaker', 'Shaker']], { show: hasFronts }), n('frontT', 'Tjocklek', { min: 3, step: 0.5, show: hasFronts })],
             [n('frame', 'Rambredd', { min: 20, show: isShakerFront }), n('tenon', 'Tapp/spår', { min: 0, show: isShakerFront }), n('panelT', 'Fyllning', { min: 2, step: 0.5, show: isShakerFront })],
+            [sel('profile', 'Ramprofil', profileOptions, { show: isShakerFront }), sel('panelStyle', 'Fyllningstyp', panelOptions, { show: isShakerFront })],
+            [html(profilePreview, { show: isShakerFront })],
             [chk('frontBand', 'Kantlist runt fronterna', { show: p => hasFronts(p) && p.frontStyle === 'flat' })]
         ]),
         group('Lådor', [
             [sel('slideId', 'Lådskenor', slideOptions)],
             [n('drawerSideT', 'Sidor', { min: 3, step: 0.5 }), n('drawerBotT', 'Botten', { min: 2, step: 0.5 }), n('groove', 'Spårdjup', { min: 0, step: 0.5 })],
             [n('clearance', 'Spel per sida', { min: 0, step: 0.1, show: p => p.slideId === 'custom' })],
-            [note(p => slideById(p.slideId).note)]
+            [html(slideNote, { cls: 'text-[12px] faint leading-relaxed' })]
         ], { show: isDrawers })
     ],
     drawer: [
@@ -80,13 +102,17 @@ const SCHEMA = {
         group('Lådskenor', [
             [sel('slideId', 'Typ', slideOptions)],
             [n('clearance', 'Spel per sida', { min: 0, step: 0.1, show: p => p.slideId === 'custom' })],
-            [note(p => slideById(p.slideId).note)]
+            [html(slideNote, { cls: 'text-[12px] faint leading-relaxed' })]
         ])
     ],
     shaker: [
         group('Dörrmått', [[n('w', 'Bredd', { min: 100 }), n('h', 'Höjd', { min: 100 })]]),
+        group('Profil', [
+            [sel('profile', 'Ramprofil', profileOptions), sel('panelStyle', 'Fyllningstyp', panelOptions)],
+            [html(profilePreview)]
+        ]),
         group('Ram och fyllning', [
-            [n('frame', 'Rambredd', { min: 20 }), n('tenon', 'Tapp/spår', { min: 0 })],
+            [n('frame', 'Rambredd', { min: 20 }), n('tenon', 'Tapp/spår', { min: 0, hint: 'Ska stämma med fräsatsen' })],
             [n('frameT', 'Ramtjocklek', { min: 5, step: 0.5 }), n('panelT', 'Fyllning', { min: 2, step: 0.5 })]
         ]),
         group('Gångjärn', [[chk('hinges', 'Räkna gångjärn och borrschema')]])
@@ -111,6 +137,8 @@ function renderField(f, item) {
         wrap.innerHTML = `<label class="inline-flex items-center gap-2.5 cursor-pointer"><span class="check-wrap"><input type="checkbox" id="${id}" class="check"${p[f.key] ? ' checked' : ''}>${CHECK_SVG}</span><span>${esc(f.label)}</span></label>`;
     } else if (f.kind === 'note') {
         wrap.className = 'text-[12px] faint leading-relaxed';
+    } else if (f.kind === 'html') {
+        wrap.className = `min-w-0 ${f.cls || ''}`;
     }
     return { field: f, wrap, input: wrap.querySelector('input,select') };
 }
@@ -145,6 +173,10 @@ function updateVisibility() {
     for (const { field, wrap } of fieldEls) {
         wrap.hidden = !!field.show && !field.show(p);
         if (field.kind === 'note') wrap.textContent = field.text(p);
+        if (field.kind === 'html' && !wrap.hidden) {
+            const out = field.render(p);
+            if (wrap.dataset.html !== out) { wrap.innerHTML = out; wrap.dataset.html = out; }
+        }
     }
 }
 
@@ -285,14 +317,17 @@ function renderResults(col, opt) {
     resOpt.innerHTML = '';
     opt.materials.forEach(r => {
         const key = thickKey(r.sheet.t);
-        const own = state.settings.prices[key] != null;
+        const own = r.sheet.custom;
+        const inp = (field, unit, w, def, min) => `<span class="fld-unit ${w}"><input type="number" min="${min}" class="fld !py-1" data-sheet="${key}" data-field="${field}"
+            value="${own[field] ?? ''}" placeholder="${def}" aria-label="${field === 'price' ? 'Pris per skiva' : field === 'L' ? 'Skivans längd' : 'Skivans bredd'} för ${thickLabel(r.sheet.t)}"><span class="unit">${unit}</span></span>`;
         const sec = document.createElement('section');
         sec.innerHTML = `<div class="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
                 <h3 class="font-semibold">${thickLabel(r.sheet.t)}</h3>
-                <span class="text-[12px] muted num">${r.sheets} ${r.sheets === 1 ? 'skiva' : 'skivor'} à ${fmt(r.sheet.L)} × ${fmt(r.sheet.W)}</span>
-                <label class="ml-auto flex items-center gap-2 text-[12px] muted">Pris per skiva
-                    <span class="fld-unit w-28"><input type="number" min="0" class="fld !py-1" data-price="${key}" value="${own ? state.settings.prices[key] : ''}" placeholder="${state.settings.price}"><span class="unit">kr</span></span>
-                </label>
+                <span class="text-[12px] muted num">${r.sheets} ${r.sheets === 1 ? 'skiva' : 'skivor'}</span>
+                <div class="ml-auto flex flex-wrap items-center gap-2 text-[12px] muted">
+                    <span>Skivformat</span>${inp('L', 'mm', 'w-28', state.settings.sheetL, 300)}<span>×</span>${inp('W', 'mm', 'w-28', state.settings.sheetW, 300)}
+                    <span class="ml-2">Pris</span>${inp('price', 'kr', 'w-24', state.settings.price, 0)}
+                </div>
                 <span class="num text-[13px] w-20 text-right">${fmtKr(r.cost)}</span>
             </div>
             <div class="grid gap-4 xl:grid-cols-2"></div>`;
@@ -320,15 +355,16 @@ function renderResults(col, opt) {
     saveBtn.hidden = !opt.newOffcuts.length && !opt.offcutsUsed.length;
     saveBtn.textContent = `Spara spillbitar (${opt.newOffcuts.length})`;
 
-    // Beslag
-    const hwCount = col.hardware.length;
-    $('hardwareEmpty').hidden = !!hwCount;
+    // Beslag och fräsar
+    const hwCount = col.hardware.length, toolCount = col.tools.length;
+    $('hardwareEmpty').hidden = !!(hwCount || toolCount);
     $('hardwareBody').hidden = !hwCount;
-    $('resHardwareList').innerHTML = col.hardware.map(h => {
-        const url = shopUrl(state.settings, h.query);
-        return `<tr><td>${esc(h.name)}</td><td class="num text-right">${h.qty}</td><td class="muted">${esc(h.unit)}</td>
-            <td class="text-right">${url ? `<a href="${esc(url)}" target="_blank" rel="noopener sponsored" class="text-[12px] whitespace-nowrap hover:underline" style="color: var(--accent)">Sök pris ↗</a>` : ''}</td></tr>`;
-    }).join('');
+    $('toolsBody').hidden = !toolCount;
+    const priceLink = q => { const url = shopUrl(state.settings, q); return url ? `<a href="${esc(url)}" target="_blank" rel="noopener sponsored" class="whitespace-nowrap hover:underline" style="color: var(--accent)">Sök pris ↗</a>` : ''; };
+    $('resHardwareList').innerHTML = col.hardware.map(h => `<tr><td>${esc(h.name)}</td><td class="num text-right">${h.qty}</td><td class="muted">${esc(h.unit)}</td>
+            <td class="text-right text-[12px] space-x-3">${h.link ? extLink(h.link.url, `Visa hos ${h.link.label}`) : ''}${priceLink(h.query)}</td></tr>`).join('');
+    $('resToolList').innerHTML = col.tools.map(t => `<tr><td>${esc(t.name)}</td><td class="muted">${esc(t.use)}</td><td class="faint">${esc(t.items.join(', '))}</td>
+            <td class="text-right text-[12px]">${priceLink(t.query)}</td></tr>`).join('');
     $('shopNote').textContent = shopUrl(state.settings, 'x') ? `Länkarna söker hos ${SHOPS[state.settings.shop].name}.` : 'Ange en länkmall under Inställningar för att visa köplänkar.';
 
     // Borrschema
@@ -338,7 +374,7 @@ function renderResults(col, opt) {
         <td class="num whitespace-nowrap">${fmt(d.h)} × ${fmt(d.w)}</td><td class="muted">${esc(d.side)}</td><td class="num whitespace-nowrap">${d.holes.map(fmt).join(' · ')}</td></tr>`).join('');
 
     // Antal i flikarna
-    const counts = { list: col.rows.length, sheets: opt.sheets + opt.offcutsUsed.length, hardware: hwCount, drill: col.drillings.length };
+    const counts = { list: col.rows.length, sheets: opt.sheets + opt.offcutsUsed.length, hardware: hwCount + toolCount, drill: col.drillings.length };
     document.querySelectorAll('[data-tab]').forEach(t => {
         const base = t.dataset.label || (t.dataset.label = t.textContent.trim());
         const c = counts[t.dataset.tab];
@@ -498,7 +534,7 @@ function loadProjectData(data) {
 // ---------------------------------------------------------------------------
 // Dialoger
 // ---------------------------------------------------------------------------
-const MODALS = ['modalSettings', 'modalOffcuts', 'modalNew'];
+const MODALS = ['modalSettings', 'modalOffcuts', 'modalNew', 'modalProfiles'];
 let lastFocus = null;
 function openModal(id) { lastFocus = document.activeElement; $(id).hidden = false; $(id).querySelector('input,select,button')?.focus(); }
 function closeModal(id) { $(id).hidden = true; lastFocus?.focus?.(); }
@@ -527,16 +563,56 @@ $('btnSaveSettings').addEventListener('click', () => {
     toast('Inställningar sparade');
 });
 
-// Pris per tjocklek (direkt i skärschemafliken)
+// Skivformat och pris per tjocklek (direkt i skärschemafliken). Tomt fält = standard från Inställningar.
 $('resOpt').addEventListener('change', e => {
-    const key = e.target.dataset.price;
-    if (key == null) return;
-    const raw = e.target.value.trim();
-    const prices = { ...state.settings.prices };
-    if (raw === '' || !Number.isFinite(+raw) || +raw < 0) delete prices[key]; else prices[key] = +raw;
-    state.settings = sanitizeSettings({ ...state.settings, prices });
-    recompute();
+    const { sheet: key, field } = e.target.dataset;
+    if (key == null || !field) return;
+    const raw = e.target.value.trim().replace(',', '.');
+    const sheets = structuredClone(state.settings.sheets);
+    const entry = sheets[key] || {};
+    if (raw === '') delete entry[field]; else entry[field] = +raw;
+    sheets[key] = entry;
+    const before = sheetFor(state.settings, +key);
+    state.settings = sanitizeSettings({ ...state.settings, sheets });
+    const after = sheetFor(state.settings, +key);
+    if (raw !== '' && after[field] !== +raw) toast(field === 'price' ? 'Priset kan inte vara negativt.' : 'Skivan måste vara minst 300 mm.', true);
+    if (before.L !== after.L || before.W !== after.W || before.price !== after.price) recompute();
 });
+
+// Profilgalleri för shaker-dörrar
+function renderProfiles() {
+    const p = activeItem()?.params;
+    if (!p) return;
+    const card = (kind, id, d, svg) => {
+        const on = (kind === 'profile' ? p.profile : p.panelStyle) === id;
+        const links = d.bits.map(b => {
+            const url = shopUrl(state.settings, b.query);
+            return `<li><span>${esc(b.name)}</span>${url ? ` ${extLink(url, 'Sök')}` : ''}<span class="block faint">${esc(b.use)}</span></li>`;
+        }).join('');
+        return `<article class="rounded-lg p-3 flex flex-col gap-2" style="background: var(--bg); border: 1px solid ${on ? 'var(--accent)' : 'var(--line)'};">
+            ${svg}
+            <div class="flex items-baseline justify-between gap-2"><h4 class="font-semibold">${esc(d.name)}</h4>${d.joint ? `<span class="text-[11px] faint">${esc(d.joint)}</span>` : `<span class="text-[11px] faint num">${d.minT}–${d.maxT} mm</span>`}</div>
+            <p class="text-[12px] muted">${esc(d.desc)}</p>
+            ${d.bits.length ? `<ul class="text-[12px] space-y-1.5">${links}</ul>` : '<p class="text-[12px] faint">Inga fräsar behövs.</p>'}
+            <button type="button" class="${on ? 'btn-accent' : 'btn-line'} !py-1.5 mt-auto" data-pick="${kind}" data-id="${id}">${on ? 'Vald' : 'Välj'}</button>
+        </article>`;
+    };
+    $('profileFrames').innerHTML = Object.entries(FRAME_PROFILES).map(([id, d]) => card('profile', id, d, profileSvg(id, p.panelStyle))).join('');
+    $('profilePanels').innerHTML = Object.entries(PANEL_STYLES).map(([id, d]) => card('panelStyle', id, d, profileSvg(p.profile, id))).join('');
+}
+$('itemForm').addEventListener('click', e => { if (e.target.closest('[data-open-profiles]')) { renderProfiles(); openModal('modalProfiles'); } });
+$('modalProfiles').addEventListener('click', e => {
+    const b = e.target.closest('[data-pick]');
+    if (!b) return;
+    const item = activeItem();
+    item.params[b.dataset.pick] = b.dataset.id;
+    const sel = $(`f_${b.dataset.pick}`);
+    if (sel) sel.value = b.dataset.id;
+    updateVisibility();
+    recompute();
+    renderProfiles();
+});
+$('btnCloseProfiles').addEventListener('click', () => closeModal('modalProfiles'));
 
 // Spillager
 function renderOffcuts() {

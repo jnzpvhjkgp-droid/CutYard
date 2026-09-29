@@ -237,11 +237,35 @@ test('tjocklekar skrivs in fritt och delar med samma tjocklek hamnar på samma s
     assert.equal(res.materials.length, 2);
 });
 
-test('pris per tjocklek ersätter standardpriset', () => {
-    const s = sanitizeSettings({ price: 500, prices: { '18': 700, '-1': 5, x: 3 } });
-    assert.deepEqual(s.prices, { '18': 700 });
-    assert.equal(sheetFor(s, 18).price, 700);
-    assert.equal(sheetFor(s, 16).price, 500);
+test('skivformat och pris per tjocklek ersätter standardvärdena', () => {
+    const s = sanitizeSettings({ price: 500, sheets: { '19': { L: 2800, W: 2070, price: 649 }, '-1': { L: 1 }, x: {} } });
+    assert.deepEqual(s.sheets, { '19': { L: 2800, W: 2070, price: 649 } });
+    assert.deepEqual([sheetFor(s, 19).L, sheetFor(s, 19).W, sheetFor(s, 19).price], [2800, 2070, 649]);
+    assert.deepEqual([sheetFor(s, 16).L, sheetFor(s, 16).W, sheetFor(s, 16).price], [2440, 1220, 500]);
+    // Ett större format ger färre skivor
+    const rows = [{ nr: 1, t: 19, l: 1300, w: 1000, lock: false, count: 4, names: ['X'], items: ['A'] }];
+    assert.ok(optimizeSheets(rows, sheetFor(s, 19), s).sheets < optimizeSheets(rows, sheetFor(s, 16), s).sheets);
+});
+
+test('äldre pris per tjocklek översätts', () => {
+    assert.deepEqual(sanitizeSettings({ prices: { '18': 700 } }).sheets, { '18': { price: 700 } });
+});
+
+test('beslag från Blum och Hettich har länk till tillverkaren', () => {
+    const col = collect([makeItem('cabinet', 'A', { fronts: 'doors' }), makeItem('cabinet', 'B', { fronts: 'drawers', slideId: 'blum-tandem' }), makeItem('drawer', 'C', { slideId: 'hettich-actro' })], S);
+    for (const key of ['hinge-cliptop-110', 'hinge-plate']) assert.match(col.hardware.find(h => h.key === key).link.url, /^https:\/\/www\.blum\.com\/se\/sv\//);
+    assert.match(col.hardware.find(h => h.key.startsWith('slide-blum-tandem')).link.url, /tandem/);
+    assert.match(col.hardware.find(h => h.key.startsWith('slide-hettich-actro')).link.url, /hettich\.com/);
+});
+
+test('profiler ger rätt fräsar och varnar för tunn upphöjd fyllning', () => {
+    const flat = buildShaker({ ...DEFAULT_PARAMS.shaker }, S);
+    assert.deepEqual(flat.tools.map(t => t.key), ['bit-slot6', 'bit-straight']);
+    const raised = buildShaker({ ...DEFAULT_PARAMS.shaker, profile: 'ogee', panelStyle: 'raised-ogee', panelT: 6 }, S);
+    assert.deepEqual(raised.tools.map(t => t.key), ['bit-cope-ogee', 'bit-raise-ogee']);
+    assert.ok(raised.warnings.some(w => w.includes('minst 15 mm')));
+    const col = collect([makeItem('shaker', 'D', {}), { ...makeItem('cabinet', 'E', { fronts: 'doors', frontStyle: 'shaker' }), qty: 2 }], S);
+    assert.deepEqual(col.tools.find(t => t.key === 'bit-slot6').items, ['D', 'E']);
 });
 
 test('ådringslås: synliga delar låses, dolda delar får roteras', () => {
