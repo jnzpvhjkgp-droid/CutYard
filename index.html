@@ -61,7 +61,8 @@
             <!-- Tomt projekt -->
             <section id="emptyState" class="card p-10 text-center lg:col-span-2" hidden>
                 <h2 class="text-lg font-semibold">Projektet är tomt</h2>
-                <p class="muted mt-1">Lägg till ett skåp, lådor eller en shaker-dörr i listan till vänster.</p>
+                <p class="muted mt-1">Ett projekt kan innehålla flera skåp, lådor och dörrar. Alla delar optimeras tillsammans på samma skivor.</p>
+                <p class="muted mt-1">Börja med "+ Skåp", "+ Lådor" eller "+ Shaker-dörr" i listan till vänster.</p>
             </section>
 
             <!-- Formulär -->
@@ -72,7 +73,7 @@
                         <input id="itemName" type="text" class="fld font-medium" maxlength="60" autocomplete="off">
                     </div>
                     <div class="w-24">
-                        <label class="lbl" for="itemQty">Antal</label>
+                        <label class="lbl" for="itemQty" title="Hur många exemplar av det här objektet du bygger">Antal</label>
                         <div class="fld-unit"><input id="itemQty" type="number" min="1" max="999" inputmode="numeric" class="fld"><span class="unit">st</span></div>
                     </div>
                 </div>
@@ -94,10 +95,10 @@
             <!-- 3D -->
             <section id="viewerPanel" class="card overflow-hidden min-w-0 lg:sticky lg:top-20" aria-label="3D-vy">
                 <div class="flex items-center justify-between gap-3 px-4 h-11 border-b" style="border-color: var(--line);">
-                    <span class="text-[12px] muted">Klicka på en del för att ta bort den ur kaplistan</span>
+                    <span class="text-[12px] muted">Dra för att vrida, scrolla för att zooma. Klicka på en del för att ta bort den ur kaplistan.</span>
                     <label class="flex items-center gap-2 text-[12px] muted cursor-pointer shrink-0">
-                        <span class="check-wrap"><input id="showFronts" type="checkbox" class="check" checked><svg class="check-mark" fill="none" stroke="currentColor" stroke-width="3.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></span>
-                        Fronter
+                        <span class="check-wrap"><input id="showFronts" type="checkbox" class="check" checked><svg class="check-mark" fill="none" stroke="currentColor" stroke-width="3.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></span title="Visa eller dölj dörrar och lådfronter så att du ser in i skåpet">
+                        Visa fronter
                     </label>
                 </div>
                 <div id="viewer3D" class="viewer h-[320px] sm:h-[440px] lg:h-[520px] cursor-grab active:cursor-grabbing"></div>
@@ -109,22 +110,22 @@
             <div class="px-4 sm:px-5 pt-4 flex flex-wrap items-center gap-x-6 gap-y-3">
                 <h2 id="resTitle" class="text-base font-semibold">Resultat</h2>
                 <div class="inline-flex rounded-lg p-0.5" style="background: var(--bg);" role="group" aria-label="Omfattning">
-                    <button type="button" class="seg is-on" data-scope="project">Hela projektet</button>
+                    <button type="button" class="seg is-on" data-scope="project" title="Alla objekt i listan till vänster">Hela projektet</button>
                     <button type="button" class="seg" data-scope="item">Bara <span id="scopeItemName">objektet</span></button>
                 </div>
                 <div class="ml-auto flex flex-wrap gap-1">
-                    <button id="btnCopyCsv" type="button" class="btn-quiet">Kopiera</button>
-                    <button id="btnExportCsv" type="button" class="btn-quiet">CSV</button>
-                    <button id="btnPrint" type="button" class="btn-line">Skriv ut</button>
+                    <button id="btnCopyCsv" type="button" class="btn-quiet" title="Kopiera kaplistan och klistra in den i Excel eller Numbers">Kopiera</button>
+                    <button id="btnExportCsv" type="button" class="btn-quiet" title="Ladda ner kaplistan som CSV-fil">Ladda ner CSV</button>
+                    <button id="btnPrint" type="button" class="btn-line" title="Kaplista, skärscheman, beslag, borrschema och etiketter med QR-kod. Välj Spara som PDF i utskriftsdialogen för att få en PDF.">Skriv ut / PDF</button>
                 </div>
             </div>
 
             <!-- Sammanfattning -->
             <dl id="summary" class="px-4 sm:px-5 pt-4 grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <div><dt class="text-[12px] muted">Delar</dt><dd id="statParts" class="num text-xl mt-0.5">0</dd></div>
-                <div><dt class="text-[12px] muted">Skivor</dt><dd class="mt-0.5"><span id="statSheets" class="num text-xl">0</span> <span id="statUtil" class="text-[12px] muted num"></span></dd></div>
-                <div><dt class="text-[12px] muted">Kantlist <span class="faint">(+10 %)</span></dt><dd id="statEdge" class="num text-xl mt-0.5">–</dd></div>
-                <div><dt class="text-[12px] muted">Skivkostnad</dt><dd id="statCost" class="num text-xl mt-0.5">0 kr</dd></div>
+                <div><dt class="text-[12px] muted">Delar att såga</dt><dd id="statParts" class="num text-xl mt-0.5">0</dd></div>
+                <div><dt class="text-[12px] muted">Skivor att köpa</dt><dd class="mt-0.5"><span id="statSheets" class="num text-xl">0</span> <span id="statUtil" class="text-[12px] muted"></span></dd></div>
+                <div><dt class="text-[12px] muted">Kantlist <span class="faint">inkl. 10 % marginal</span></dt><dd id="statEdge" class="num text-xl mt-0.5">–</dd></div>
+                <div><dt class="text-[12px] muted">Kostnad för skivor</dt><dd id="statCost" class="num text-xl mt-0.5">0 kr</dd></div>
             </dl>
 
             <div id="resWarn" class="note-warn mx-4 sm:mx-5 mt-4" hidden></div>
@@ -143,10 +144,10 @@
 
                 <div data-panel="sheets" role="tabpanel" hidden>
                     <div class="flex flex-wrap items-center gap-x-4 gap-y-2 mb-4 text-[12px] muted">
-                        <span>Alla snitt går rakt igenom skivan. Streckade ytor är spillbitar värda att spara.</span>
+                        <span class="max-w-2xl leading-relaxed">Så här sågas skivorna. Varje snitt går rakt igenom skivan, så schemat fungerar på en vanlig skivsåg. Numren hänvisar till kaplistan och ↻ betyder att delen är vriden. Streckade ytor är spillbitar som är stora nog att spara. Ange skivans mått och pris per tjocklek om de skiljer sig från standard i Inställningar.</span>
                         <span class="ml-auto flex items-center gap-1">
                             <span id="offcutCount" class="num"></span>
-                            <button id="btnOffcuts" type="button" class="btn-quiet !py-1">Spillager</button>
+                            <button id="btnOffcuts" type="button" class="btn-quiet !py-1" title="Visa och ändra sparade spillbitar">Spillager</button>
                             <button id="btnSaveOffcuts" type="button" class="btn-line !py-1" hidden></button>
                         </span>
                     </div>
@@ -154,8 +155,9 @@
                 </div>
 
                 <div data-panel="hardware" role="tabpanel" hidden>
-                    <div id="hardwareEmpty" class="muted text-[13px]" hidden>Inga beslag i det här urvalet.</div>
+                    <div id="hardwareEmpty" class="muted text-[13px]" hidden>Inga beslag eller fräsar behövs för det här urvalet.</div>
                     <div id="hardwareBody" class="mb-8">
+                        <p class="text-[12px] muted mb-3">Beslag som behövs, sammanräknat för alla exemplar. "Visa hos Blum" öppnar tillverkarens produktsida.</p>
                         <div class="overflow-x-auto"><table class="tbl">
                             <thead><tr><th>Produkt</th><th class="!text-right">Antal</th><th>Enhet</th><th class="!text-right"></th></tr></thead>
                             <tbody id="resHardwareList"></tbody>
@@ -168,7 +170,7 @@
 
                     <div id="toolsBody">
                         <h3 class="font-semibold mb-1">Fräsar</h3>
-                        <p class="text-[12px] muted mb-3">För de profiler du valt på shaker-dörrarna. Kontrollera att tapp/spårdjup stämmer med din fräsats.</p>
+                        <p class="text-[12px] muted mb-3">Fräsar som behövs för de profiler du valt på shaker-dörrarna. Kontrollera att tappdjupet i formuläret stämmer med din fräsats.</p>
                         <div class="overflow-x-auto"><table class="tbl">
                             <thead><tr><th>Fräs</th><th>Används till</th><th>Objekt</th><th></th></tr></thead>
                             <tbody id="resToolList"></tbody>
@@ -177,11 +179,11 @@
                 </div>
 
                 <div data-panel="drill" role="tabpanel" hidden>
-                    <div id="drillEmpty" class="muted text-[13px]" hidden>Inga dörrar med gångjärn i det här urvalet.</div>
+                    <div id="drillEmpty" class="muted text-[13px]" hidden>Inga dörrar med gångjärn i det här urvalet. Borrschemat visas när ett skåp har dörrar eller en shaker-dörr räknar gångjärn.</div>
                     <div id="drillBody">
-                        <p class="text-[12px] muted mb-3 num">Kopphål Ø35 × 13 mm, centrum 22,5 mm från dörrkanten. Hålens mått räknas från dörrens överkant.</p>
+                        <p class="text-[12px] muted mb-3 leading-relaxed">Varje gångjärn kräver ett runt hål på dörrens baksida, ett så kallat kopphål: Ø35 mm och 13 mm djupt, med centrum 22,5 mm in från dörrens kant på gångjärnssidan. Tabellen visar hur långt ned från dörrens överkant varje hål ska borras.</p>
                         <div class="overflow-x-auto"><table class="tbl">
-                            <thead><tr><th>Objekt</th><th>Dörr</th><th class="!text-right">Antal</th><th>Dörrmått</th><th>Gångjärnssida</th><th>Hål från överkant</th></tr></thead>
+                            <thead><tr><th>Hör till</th><th>Dörr</th><th class="!text-right">Antal</th><th>Höjd × bredd</th><th>Gångjärn på</th><th>Hål från överkant (mm)</th></tr></thead>
                             <tbody id="resDrillList"></tbody>
                         </table></div>
                     </div>
@@ -211,26 +213,30 @@
                 </fieldset>
                 <fieldset class="field-group grid-cols-3">
                     <legend class="group-title mb-3">Sågning</legend>
-                    <div><label class="lbl" for="setKerf">Sågspalt</label><div class="fld-unit"><input type="number" id="setKerf" min="0" step="0.1" class="fld"><span class="unit">mm</span></div></div>
-                    <div><label class="lbl" for="setTrim">Kantputs</label><div class="fld-unit"><input type="number" id="setTrim" min="0" class="fld"><span class="unit">mm</span></div></div>
-                    <div><label class="lbl" for="setEdgeThick">Kantlist</label><div class="fld-unit"><input type="number" id="setEdgeThick" min="0" step="0.1" class="fld"><span class="unit">mm</span></div></div>
+                    <p class="col-span-3 text-[12px] muted -mt-1">Används när skärschemat räknas ut.</p>
+                    <div><label class="lbl" for="setKerf">Sågspalt</label><div class="fld-unit"><input type="number" id="setKerf" min="0" step="0.1" class="fld"><span class="unit">mm</span></div><span class="block text-[11px] faint mt-1">Så mycket klingan tar bort</span></div>
+                    <div><label class="lbl" for="setTrim">Kantputs</label><div class="fld-unit"><input type="number" id="setTrim" min="0" class="fld"><span class="unit">mm</span></div><span class="block text-[11px] faint mt-1">Sågas bort runt nya skivor</span></div>
+                    <div><label class="lbl" for="setEdgeThick">Kantlist</label><div class="fld-unit"><input type="number" id="setEdgeThick" min="0" step="0.1" class="fld"><span class="unit">mm</span></div><span class="block text-[11px] faint mt-1">Listens tjocklek</span></div>
                     <label class="col-span-3 flex items-start gap-3 cursor-pointer pt-1">
                         <span class="check-wrap mt-0.5"><input type="checkbox" id="setGrainLock" class="check"><svg class="check-mark" fill="none" stroke="currentColor" stroke-width="3.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></span>
-                        <span><span class="block">Rotera inte synliga delar</span><span class="block text-[12px] faint mt-0.5">För skivor med ådring. Dolda delar som lådbottnar roteras ändå.</span></span>
+                        <span><span class="block">Rotera inte synliga delar</span><span class="block text-[12px] faint mt-0.5">För skivor med ådring, så att ådringen går åt samma håll på alla synliga delar. Dolda delar som lådbottnar och bakstycken får vridas ändå.</span></span>
                     </label>
                 </fieldset>
                 <fieldset class="field-group grid-cols-2">
                     <legend class="group-title mb-3">Fronter</legend>
-                    <div><label class="lbl" for="setReveal">Spel mot stommens kant</label><div class="fld-unit"><input type="number" id="setReveal" min="0" step="0.5" class="fld"><span class="unit">mm</span></div></div>
-                    <div><label class="lbl" for="setFrontGap">Spel mellan fronter</label><div class="fld-unit"><input type="number" id="setFrontGap" min="0" step="0.5" class="fld"><span class="unit">mm</span></div></div>
+                    <p class="col-span-2 text-[12px] muted -mt-1">Fronterna görs lite mindre än skåpet så att de inte tar i varandra.</p>
+                    <div><label class="lbl" for="setReveal">Spel runt kanten</label><div class="fld-unit"><input type="number" id="setReveal" min="0" step="0.5" class="fld"><span class="unit">mm</span></div><span class="block text-[11px] faint mt-1">Från frontens kant till skåpets ytterkant</span></div>
+                    <div><label class="lbl" for="setFrontGap">Spel mellan fronter</label><div class="fld-unit"><input type="number" id="setFrontGap" min="0" step="0.5" class="fld"><span class="unit">mm</span></div><span class="block text-[11px] faint mt-1">Mellan två dörrar eller lådfronter</span></div>
                 </fieldset>
                 <fieldset class="field-group grid-cols-2">
                     <legend class="group-title mb-3">Spillbitar</legend>
+                    <p class="col-span-2 text-[12px] muted -mt-1">Bitar som är mindre än så här räknas som spill och föreslås inte för spillagret.</p>
                     <div><label class="lbl" for="setMinOffcutL">Minsta längd att spara</label><div class="fld-unit"><input type="number" id="setMinOffcutL" min="0" class="fld"><span class="unit">mm</span></div></div>
                     <div><label class="lbl" for="setMinOffcutW">Minsta bredd att spara</label><div class="fld-unit"><input type="number" id="setMinOffcutW" min="0" class="fld"><span class="unit">mm</span></div></div>
                 </fieldset>
                 <fieldset class="field-group">
-                    <legend class="group-title mb-3">Köplänkar för beslag</legend>
+                    <legend class="group-title mb-3">Prislänkar för beslag och fräsar</legend>
+                    <p class="text-[12px] muted -mt-1">Var "Sök pris" ska söka.</p>
                     <select id="setShop" class="fld" aria-label="Butik"></select>
                     <div id="setShopTemplateWrap"><label class="lbl" for="setShopTemplate">Egen länkmall, {q} ersätts med sökordet</label>
                         <input type="url" id="setShopTemplate" class="fld text-[13px]" placeholder="https://www.exempel.se/sok?q={q}&amp;ref=cutyard"></div>
@@ -248,7 +254,7 @@
         <div class="card w-full max-w-4xl max-h-full overflow-y-auto shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="profTitle">
             <div class="px-5 pt-5">
                 <h3 id="profTitle" class="text-base font-semibold">Profiler och fräsar</h3>
-                <p class="text-[12px] muted mt-1">Tvärsnitt genom ramens innerkant och fyllningen. Skisserna är principbilder, inte skalenliga.</p>
+                <p class="text-[12px] muted mt-1 leading-relaxed">Bilderna visar ett snitt rakt genom dörren där ramen (ljus) möter fyllningen (mörkare), med dörrens framsida uppåt. Skisserna är principbilder, inte skalenliga. Välj en ramprofil och en fyllning.</p>
             </div>
             <div class="p-5 space-y-6">
                 <section>

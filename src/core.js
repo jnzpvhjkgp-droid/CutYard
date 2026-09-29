@@ -100,15 +100,15 @@ export const MAKER_LINKS = {
 
 export const SLIDES = [
     { id: 'ball', name: 'Kullagerskenor, sidomonterade', clearance: 12.7, mount: 'side', lengths: range(250, 650, 50), lengthOffset: 0, depthMargin: 5, bottomRecess: 12, maxSide: null,
-      note: 'Lådlängd = skenans längd. 12,7 mm spel per sida.' },
+      note: 'Skruvas på lådans sidor. Kräver 12,7 mm fritt utrymme på var sida mellan skåpsida och lådsida. Lådan blir lika lång som skenan.' },
     { id: 'blum-movento', name: 'Blum MOVENTO', clearance: 5, mount: 'under', lengths: [250, 270, 300, 350, 400, 450, 500, 550, 600, 650, 700, 750], lengthOffset: -10, depthMargin: 3, bottomRecess: 13, maxSide: 16, link: MAKER_LINKS.movento,
-      note: 'Lådans innerbredd = öppning − 42 mm vid 16 mm sidor. Lådlängd = NL − 10 mm. Bakstycket behöver urtag för skenan.' },
+      note: 'Döljs under lådan. Kräver 5 mm spel på var sida och lådsidor på högst 16 mm, så lådan blir invändigt 42 mm smalare än öppningen. Lådan görs 10 mm kortare än skenan. Bakstycket behöver ett urtag för skenans låsning, se Blums monteringsanvisning.' },
     { id: 'blum-tandem', name: 'Blum TANDEM', clearance: 5, mount: 'under', lengths: [250, 270, 300, 350, 400, 450, 500, 550, 600, 650, 700, 750], lengthOffset: -10, depthMargin: 3, bottomRecess: 13, maxSide: 16, link: MAKER_LINKS.tandem,
-      note: 'Lådans innerbredd = öppning − 42 mm vid 16 mm sidor. Lådlängd = NL − 10 mm. Bakstycket behöver urtag för skenan.' },
+      note: 'Döljs under lådan. Kräver 5 mm spel på var sida och lådsidor på högst 16 mm, så lådan blir invändigt 42 mm smalare än öppningen. Lådan görs 10 mm kortare än skenan. Bakstycket behöver ett urtag för skenans låsning, se Blums monteringsanvisning.' },
     { id: 'hettich-actro', name: 'Hettich Actro 5D', clearance: 5, mount: 'under', lengths: [270, 300, 350, 400, 450, 500, 550, 600], lengthOffset: -10, depthMargin: 3, bottomRecess: 13, maxSide: 16, link: MAKER_LINKS.actro,
-      note: 'Lådans innerbredd = öppning − 42 mm vid 16 mm sidor. Kontrollera lådlängd mot Hettichs anvisning.' },
+      note: 'Döljs under lådan. Kräver 5 mm spel på var sida och lådsidor på högst 16 mm, så lådan blir invändigt 42 mm smalare än öppningen. Kontrollera lådans längd mot Hettichs monteringsanvisning.' },
     { id: 'custom', name: 'Egen skena (ange spel)', clearance: null, mount: 'side', lengths: null, lengthOffset: 0, depthMargin: 10, bottomRecess: 12, maxSide: null,
-      note: 'Lådlängd = skåpets innerdjup − 10 mm.' }
+      note: 'Ange hur mycket spel skenan kräver på var sida (står i skenans anvisning). Lådan görs 10 mm kortare än skåpets innerdjup.' }
 ];
 export const slideById = id => SLIDES.find(s => s.id === id) || SLIDES[0];
 
@@ -131,7 +131,7 @@ export function drawerBox(o) {
     let len;
     if (slide.lengths) {
         if (nl == null) {
-            warnings.push(`Skåpet är för grunt för ${slide.name}. Kortaste skenan är ${slide.lengths[0]} mm och kräver ${slide.lengths[0] + slide.depthMargin} mm innerdjup.`);
+            warnings.push(`Skåpet är för grunt för ${slide.name}. Den kortaste skenan är ${slide.lengths[0]} mm och behöver minst ${slide.lengths[0] + slide.depthMargin} mm innerdjup. Öka djupet eller välj en annan skena.`);
             len = Math.max(50, o.depth - slide.depthMargin);
         } else len = nl + slide.lengthOffset;
     } else len = Math.max(50, Math.floor(o.depth - slide.depthMargin));
@@ -140,11 +140,11 @@ export function drawerBox(o) {
     const inner = boxW - 2 * o.sideT;
     const innerLen = len - 2 * o.sideT;
     const g = o.groove;
-    if (inner < 40) warnings.push('Lådan blir för smal. Kontrollera öppningens bredd, skenspel och sidtjocklek.');
-    if (slide.maxSide && o.sideT > slide.maxSide) warnings.push(`${slide.name} är avsedd för lådsidor upp till ${slide.maxSide} mm (valt: ${fmt(o.sideT)} mm).`);
-    if (g >= o.sideT) warnings.push(`Spårdjupet (${fmt(g)} mm) går igenom lådsidan (${fmt(o.sideT)} mm).`);
-    else if (g > o.sideT * 0.6) warnings.push('Spårdjupet är mer än 60 % av sidtjockleken och försvagar sidorna.');
-    if (o.boxH < 50) warnings.push('Lådhöjden är mycket låg.');
+    if (inner < 40) warnings.push('Lådan blir för smal. Öppningen räcker inte till skenornas spel och lådsidornas tjocklek. Öka bredden eller välj tunnare lådsidor.');
+    if (slide.maxSide && o.sideT > slide.maxSide) warnings.push(`${slide.name} kräver lådsidor på högst ${slide.maxSide} mm. Du har angett ${fmt(o.sideT)} mm.`);
+    if (g >= o.sideT) warnings.push(`Spåret för lådbottnen (${fmt(g)} mm) är lika djupt som lådsidan är tjock (${fmt(o.sideT)} mm) och går igenom sidan. Minska spårdjupet.`);
+    else if (g > o.sideT * 0.6) warnings.push('Spåret för lådbottnen är djupare än 60 % av lådsidans tjocklek och försvagar sidan. Välj ett grundare spår.');
+    if (o.boxH < 50) warnings.push('Lådan är lägre än 50 mm och rymmer mycket lite. Kontrollera lådhöjden.');
     return {
         clr, nl, len, boxW, inner, innerLen,
         botW: inner + 2 * g - 1,       // botten i spår: innermått + spårdjup på båda sidor − 1 mm spel
@@ -183,11 +183,11 @@ function hw(key, name, qty, unit, query, link = null) { return { key, name, qty,
 const bit = (key, name, use, query) => ({ key, name, use, query });
 export const FRAME_PROFILES = {
     square: { name: 'Rak (klassisk shaker)', joint: 'Not och tapp',
-        desc: 'Rak innerkant utan profil. Fyllningen sitter i ett spår och railsen har tappar som går in i spåret på stilesen.',
+        desc: 'Rak innerkant utan profil. Fyllningen sitter i ett spår i ramen. De liggande delarna (rails) har tappar som går in i spåret på de stående delarna (stiles).',
         bits: [bit('bit-slot6', 'Skivnotfräs 6 mm med kullager', 'Spår för fyllningen i stiles och rails', 'skivnotfräs 6 mm'),
                bit('bit-straight', 'Rak fräs, Ø 12–19 mm', 'Tappar på railsens ändar (kan också sågas på bordsåg)', 'rak fräs 12 mm')] },
     'shaker-cope': { name: 'Rak med kontraprofil', joint: 'Kontraprofil (cope & stick)',
-        desc: 'Samma raka utseende, men fogen fräses med en kontraprofilsats. Railsens ändar får en motprofil som griper in i spåret, så det behövs inga separata tappar.',
+        desc: 'Samma raka utseende, men fogen fräses med en kontraprofilsats. Ändarna på de liggande delarna får en motprofil som griper in i spåret, så det behövs inga separata tappar.',
         bits: [bit('bit-cope-shaker', 'Kontraprofilsats, rak shaker-profil', 'Spår längs kanterna och motprofil på railsens ändar', 'kontraprofilfräs shaker')] },
     ogee: { name: 'Ogee', joint: 'Kontraprofil (cope & stick)',
         desc: 'S-formad profil längs ramens innerkant. Klassisk och dekorativ.',
@@ -212,7 +212,7 @@ export const PANEL_STYLES = {
         desc: 'Upphöjd fyllning med S-formad kant. Passar ihop med ogee-ram.',
         bits: [bit('bit-raise-ogee', 'Fältfräs (spegelfräs), ogee', 'Fräser en S-profil ned till spårets bredd', 'fältfräs ogee')] }
 };
-export const RAISED_PANEL_NOTE = 'Fältfräsar har stor diameter, ofta 80–90 mm. Använd bordsfräs och tillverkarens varvtal.';
+export const RAISED_PANEL_NOTE = 'Säkerhet: fältfräsar är stora, ofta 80–90 mm i diameter. Använd dem bara i bordsfräs och med det varvtal tillverkaren anger.';
 
 export function profileTools(profileId, panelId) {
     const fp = FRAME_PROFILES[profileId] || FRAME_PROFILES.square;
@@ -225,11 +225,11 @@ export function shakerDoorParts({ w, h, frame, tenon, frameT, panelT, profile = 
     const [ox, oy, oz] = origin;
     const p = prefix ? prefix + ': ' : '';
     const warnings = [];
-    if (w <= 2 * f + 20 || h <= 2 * f + 20) warnings.push(`${prefix || 'Dörren'}: ramen är för bred för dörrens mått.`);
+    if (w <= 2 * f + 20 || h <= 2 * f + 20) warnings.push(`${prefix || 'Dörren'}: ramen tar upp nästan hela dörren. Minska rambredden eller öka dörrens mått.`);
     const ps = PANEL_STYLES[panelStyle] || PANEL_STYLES.flat;
-    if (tP < ps.minT) warnings.push(`${prefix || 'Dörren'}: en fyllning av typen "${ps.name.toLowerCase()}" behöver vara minst ${ps.minT} mm.`);
-    else if (tP > ps.maxT) warnings.push(`${prefix || 'Dörren'}: ${fmt(tP)} mm är tjockt för en ${ps.name.toLowerCase()} fyllning (vanligt är ${ps.minT}–${ps.maxT} mm).`);
-    if (panelStyle === 'flat' && tP >= tF) warnings.push(`${prefix || 'Dörren'}: fyllningen är lika tjock som ramen.`);
+    if (tP < ps.minT) warnings.push(`${prefix || 'Dörren'}: en ${ps.name.toLowerCase()} fyllning behöver vara minst ${ps.minT} mm tjock${panelStyle === 'flat' ? '' : ' för att kanten ska kunna fräsas ned till en tunga'}.`);
+    else if (tP > ps.maxT) warnings.push(`${prefix || 'Dörren'}: ${fmt(tP)} mm är tjockt för en ${ps.name.toLowerCase()} fyllning. Vanligt är ${ps.minT}–${ps.maxT} mm.`);
+    if (panelStyle === 'flat' && tP >= tF) warnings.push(`${prefix || 'Dörren'}: fyllningen är lika tjock som ramen eller tjockare och får inte plats i spåret.`);
     const railL = w - 2 * f + 2 * tenon;
     const pw = Math.max(1, w - 2 * f), ph = Math.max(1, h - 2 * f);
     const common = { t: tF, grain: true, band: NO_BAND };
@@ -281,8 +281,8 @@ export function buildCabinet(p, S) {
     const back = tB > 0;
     const { w, h, d } = p;
     const warnings = [], hardware = [], drillings = [], parts = [];
-    if (w <= 2 * t + 20) warnings.push('Bredden är för liten i förhållande till stomtjockleken.');
-    if (d - tB <= 60) warnings.push('Djupet är för litet.');
+    if (w <= 2 * t + 20) warnings.push(`Skåpet är för smalt. Bredden måste vara större än två sidor (2 × ${fmt(t)} mm). Öka bredden eller välj tunnare skivor.`);
+    if (d - tB <= 60) warnings.push('Skåpet är för grunt. Öka djupet.');
 
     const inner = Math.max(1, w - 2 * t);
     const dc = Math.max(1, d - tB);   // stommens djup; bakstycket läggs på baksidan
@@ -298,7 +298,7 @@ export function buildCabinet(p, S) {
 
     const shelves = p.fronts === 'drawers' ? 0 : clamp(Math.round(p.shelves), 0, 20);
     if (shelves > 0) {
-        if (h <= 2 * t + shelves * t + 20) warnings.push('Höjden räcker inte för alla hyllplan.');
+        if (h <= 2 * t + shelves * t + 20) warnings.push('Hyllplanen får inte plats på höjden. Minska antalet hyllplan eller öka höjden.');
         const sd = Math.max(1, dc - 20);                          // 20 mm indrag från framkant
         const gap = Math.max(0, (h - 2 * t - shelves * t) / (shelves + 1));
         for (let i = 1; i <= shelves; i++) {
@@ -341,7 +341,7 @@ export function buildCabinet(p, S) {
             addFront(`door${i}`, name, dw, dh, -w / 2 + R + dw / 2 + i * (dw + G), 0, false);
             drillings.push({ door: name, w: dw, h: dh, side: n === 2 && i === 1 ? 'höger' : 'vänster', holes: hingePositions(dh, count), ...HINGE });
         }
-        if (p.frontStyle === 'shaker' && p.frame < HINGE.edgeDist + HINGE.cupDia / 2 + 5) warnings.push(`Rambredden (${fmt(p.frame)} mm) är för smal för 35 mm gångjärnskopp. Välj minst ${HINGE.edgeDist + HINGE.cupDia / 2 + 5} mm.`);
+        if (p.frontStyle === 'shaker' && p.frame < HINGE.edgeDist + HINGE.cupDia / 2 + 5) warnings.push(`Rambredden ${fmt(p.frame)} mm är för smal för gångjärnen. Gångjärnets kopphål (Ø35 mm) behöver en ram på minst ${HINGE.edgeDist + HINGE.cupDia / 2 + 5} mm.`);
         hardware.push(hw('hinge-cliptop-110', 'Blum CLIP top BLUMOTION 110° gångjärn', count * n, 'st', null, MAKER_LINKS.clipTopBlumotion));
         hardware.push(hw('hinge-plate', 'Blum CLIP monteringsplatta', count * n, 'st', null, MAKER_LINKS.clipTop));
         hardware.push(hw('handle', 'Handtag eller knopp', n, 'st', 'möbelhandtag'));
@@ -379,7 +379,7 @@ export function buildDrawer(p) {
         hardware: [slideHardware(slide, box.nl, 1, box.clr)],
         warnings: box.warnings,
         drillings: [],
-        info: [`Lådlängd ${fmt(box.len)} mm`, `Ytterbredd ${fmt(box.boxW)} mm`, `Innerbredd ${fmt(box.inner)} mm`, box.nl ? `Skena ${box.nl} mm` : null].filter(Boolean)
+        info: [`Lådan blir ${fmt(box.len)} mm lång och ${fmt(box.boxW)} mm bred utvändigt (${fmt(box.inner)} mm invändigt).`, box.nl ? `Skenlängd: ${box.nl} mm.` : null].filter(Boolean)
     };
 }
 
@@ -391,7 +391,7 @@ export function buildShaker(p) {
         hardware.push(hw('hinge-cliptop-110', 'Blum CLIP top BLUMOTION 110° gångjärn', n, 'st', null, MAKER_LINKS.clipTopBlumotion));
         hardware.push(hw('hinge-plate', 'Blum CLIP monteringsplatta', n, 'st', null, MAKER_LINKS.clipTop));
         drillings.push({ door: 'Dörr', w: p.w, h: p.h, side: 'vänster', holes: hingePositions(p.h, n), ...HINGE });
-        if (p.frame < HINGE.edgeDist + HINGE.cupDia / 2 + 5) res.warnings.push(`Rambredden (${fmt(p.frame)} mm) är för smal för 35 mm gångjärnskopp. Välj minst ${HINGE.edgeDist + HINGE.cupDia / 2 + 5} mm.`);
+        if (p.frame < HINGE.edgeDist + HINGE.cupDia / 2 + 5) res.warnings.push(`Rambredden ${fmt(p.frame)} mm är för smal för gångjärnen. Gångjärnets kopphål (Ø35 mm) behöver en ram på minst ${HINGE.edgeDist + HINGE.cupDia / 2 + 5} mm.`);
     }
     return { parts: res.parts, hardware, warnings: res.warnings, drillings, tools: res.tools };
 }

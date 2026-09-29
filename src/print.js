@@ -21,8 +21,8 @@ export function buildPrint(el, { projectName, scopeLabel, col, opt, withLabels }
     h.push(`<h1>${esc(projectName)}</h1><div>${esc(scopeLabel)} · ${date} · ${col.partCount} delar · ${opt.sheets} skivor · ${fmtKr(opt.totalCost)}${col.edgeMeters > 0 ? ` · kantlist ${fmt(col.edgeMeters * 1.1)} m` : ''}</div>`);
 
     h.push('<h2>Kaplista</h2><table><thead><tr><th>Nr</th><th>Antal</th><th>Längd</th><th>Bredd</th><th>Tjocklek</th><th>Del</th><th>Objekt</th></tr></thead><tbody>');
-    col.rows.forEach(r => h.push(`<tr><td class="p-num"><b>${r.nr}</b></td><td class="p-num">${r.count}</td><td class="p-num">${fmt(r.l)}${r.lock ? ' ⇄' : ''}</td><td class="p-num">${fmt(r.w)}</td><td class="p-num">${fmt(r.t)}</td><td>${esc(r.names.join(', '))}</td><td>${esc(r.items.join(', '))}</td></tr>`));
-    h.push('</tbody></table><div style="font-size:8pt;margin-top:1mm">⇄ = ådring längs längdmåttet. Mått i mm, kantlist avdragen.</div>');
+    col.rows.forEach(r => h.push(`<tr><td class="p-num"><b>${r.nr}</b></td><td class="p-num">${r.count}</td><td class="p-num">${fmt(r.l)}${r.lock ? ' ⇅' : ''}</td><td class="p-num">${fmt(r.w)}</td><td class="p-num">${fmt(r.t)}</td><td>${esc(r.names.join(', '))}</td><td>${esc(r.items.join(', '))}</td></tr>`));
+    h.push('</tbody></table><div style="font-size:8pt;margin-top:1mm">Mått i mm. Kantlistens tjocklek är redan avdragen. ⇅ = delen får inte vändas, ådringen ska gå längs längden.</div>');
 
     if (col.hardware.length) {
         h.push('<h2>Beslag</h2><table><thead><tr><th>Produkt</th><th>Antal</th><th>Enhet</th></tr></thead><tbody>');

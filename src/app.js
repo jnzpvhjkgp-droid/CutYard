@@ -58,8 +58,9 @@ function profilePreview(p) {
     const tools = profileTools(p.profile, p.panelStyle);
     return `<div class="rounded-lg p-3 space-y-3" style="background: var(--bg); border: 1px solid var(--line);">
         ${profileSvg(p.profile, p.panelStyle)}
-        <div class="text-[12px] muted">${esc(fp.joint)} · fyllning ${esc(ps.minT)}–${esc(ps.maxT)} mm</div>
-        <ul class="space-y-1.5 text-[12px]">${tools.map(t => `<li><span>${esc(t.name)}</span><span class="faint"> – ${esc(t.use)}</span></li>`).join('')}</ul>
+        <div class="text-[12px] muted">Fog: ${esc(fp.joint.toLowerCase())}. Fyllningen bör vara ${esc(ps.minT)}–${esc(ps.maxT)} mm tjock.</div>
+        ${tools.length ? '<div class="text-[12px] font-medium">Fräsar som behövs</div>' : ''}
+        <ul class="space-y-1.5 text-[12px] !mt-1">${tools.map(t => `<li><span>${esc(t.name)}</span><span class="faint"> – ${esc(t.use)}</span></li>`).join('')}</ul>
         ${p.panelStyle !== 'flat' ? `<p class="text-[12px]" style="color: var(--warn)">${esc(RAISED_PANEL_NOTE)}</p>` : ''}
         <button type="button" class="btn-line !py-1.5 !text-[12px]" data-open-profiles>Visa alla profiler och fräsar</button>
     </div>`;
@@ -73,48 +74,55 @@ const isShakerFront = p => hasFronts(p) && p.frontStyle === 'shaker';
 
 const SCHEMA = {
     cabinet: [
-        group('Yttermått', [[n('w', 'Bredd', { min: 100 }), n('h', 'Höjd', { min: 100 }), n('d', 'Djup', { min: 100 })]]),
+        group('Yttermått', [[n('w', 'Bredd', { min: 100 }), n('h', 'Höjd', { min: 100 }), n('d', 'Djup', { min: 100 })]],
+            { desc: 'Skåpets mått utvändigt, utan fronter.' }),
         group('Stomme', [
-            [n('carcassT', 'Tjocklek', { min: 3, step: 0.5 }), n('backT', 'Bakstycke', { min: 0, step: 0.5, hint: '0 = inget bakstycke' }),
+            [n('carcassT', 'Skivtjocklek', { min: 3, step: 0.5 }), n('backT', 'Bakstycke', { min: 0, step: 0.5, hint: '0 = inget' }),
              n('shelves', 'Hyllplan', { min: 0, max: 20, int: true, unit: 'st', show: p => !isDrawers(p) })],
-            [chk('edgeBand', 'Kantlist på framkanter')]
-        ]),
+            [chk('edgeBand', 'Kantlist på framkanterna', { hint: 'Listens tjocklek dras av från delarnas mått.' })]
+        ], { desc: 'Sidor, topp och botten sågas ur samma skiva. Bakstycket är en tunnare skiva som sätts på baksidan.' }),
         group('Fronter', [
-            [sel('fronts', 'Typ', [['none', 'Inga'], ['doors', 'Dörrar'], ['drawers', 'Lådor']]),
-             sel('doorCount', 'Antal', [['auto', 'Auto'], ['1', '1'], ['2', '2']], { show: p => p.fronts === 'doors' }),
-             n('drawerCount', 'Antal', { min: 1, max: 8, int: true, unit: 'st', show: isDrawers })],
-            [sel('frontStyle', 'Stil', [['flat', 'Slät'], ['shaker', 'Shaker']], { show: hasFronts }), n('frontT', 'Tjocklek', { min: 3, step: 0.5, show: hasFronts })],
-            [n('frame', 'Rambredd', { min: 20, show: isShakerFront }), n('tenon', 'Tapp/spår', { min: 0, show: isShakerFront }), n('panelT', 'Fyllning', { min: 2, step: 0.5, show: isShakerFront })],
+            [sel('fronts', 'Fronter', [['none', 'Inga fronter'], ['doors', 'Dörrar'], ['drawers', 'Lådor']]),
+             sel('doorCount', 'Antal dörrar', [['auto', 'Auto'], ['1', '1 dörr'], ['2', '2 dörrar']], { show: p => p.fronts === 'doors', hint: 'Auto: 2 dörrar över 600 mm' }),
+             n('drawerCount', 'Antal lådor', { min: 1, max: 8, int: true, unit: 'st', show: isDrawers })],
+            [sel('frontStyle', 'Utförande', [['flat', 'Slät skiva'], ['shaker', 'Shaker (ram och fyllning)']], { show: hasFronts }),
+             n('frontT', 'Fronttjocklek', { min: 3, step: 0.5, show: hasFronts })],
+            [n('frame', 'Rambredd', { min: 20, show: isShakerFront, hint: 'Ramens synliga bredd' }),
+             n('tenon', 'Tappdjup', { min: 0, show: isShakerFront, hint: 'Enligt din fräsats' }),
+             n('panelT', 'Fyllning', { min: 2, step: 0.5, show: isShakerFront, hint: 'Fyllningens tjocklek' })],
             [sel('profile', 'Ramprofil', profileOptions, { show: isShakerFront }), sel('panelStyle', 'Fyllningstyp', panelOptions, { show: isShakerFront })],
             [html(profilePreview, { show: isShakerFront })],
             [chk('frontBand', 'Kantlist runt fronterna', { show: p => hasFronts(p) && p.frontStyle === 'flat' })]
-        ]),
+        ], { desc: 'Dörrar eller lådfronter som täcker skåpets framsida. Spelet runt dem ställs in under Inställningar.' }),
         group('Lådor', [
             [sel('slideId', 'Lådskenor', slideOptions)],
-            [n('drawerSideT', 'Sidor', { min: 3, step: 0.5 }), n('drawerBotT', 'Botten', { min: 2, step: 0.5 }), n('groove', 'Spårdjup', { min: 0, step: 0.5 })],
-            [n('clearance', 'Spel per sida', { min: 0, step: 0.1, show: p => p.slideId === 'custom' })],
-            [html(slideNote, { cls: 'text-[12px] faint leading-relaxed' })]
-        ], { show: isDrawers })
+            [n('drawerSideT', 'Lådsidor', { min: 3, step: 0.5, hint: 'Tjocklek' }), n('drawerBotT', 'Lådbotten', { min: 2, step: 0.5, hint: 'Tjocklek' }),
+             n('groove', 'Spårdjup', { min: 0, step: 0.5, hint: 'Spåret för bottnen' })],
+            [n('clearance', 'Spel per sida', { min: 0, step: 0.1, show: p => p.slideId === 'custom', hint: 'Mellan skåpsida och lådsida' })],
+            [html(slideNote, { cls: 'text-[12px] muted leading-relaxed' })]
+        ], { show: isDrawers, desc: 'Lådlådorna räknas fram automatiskt utifrån skåpets innermått och de skenor du väljer.' })
     ],
     drawer: [
-        group('Skåpsöppning', [[n('w', 'Innerbredd', { min: 50 }), n('h', 'Lådhöjd', { min: 30 }), n('d', 'Innerdjup', { min: 100 })]]),
-        group('Tjocklekar', [[n('sideT', 'Sidor', { min: 3, step: 0.5 }), n('botT', 'Botten', { min: 2, step: 0.5 }), n('groove', 'Spårdjup', { min: 0, step: 0.5 })]]),
+        group('Skåpsöppning', [[n('w', 'Innerbredd', { min: 50, hint: 'Mellan skåpsidorna' }), n('h', 'Lådans höjd', { min: 30 }), n('d', 'Innerdjup', { min: 100, hint: 'Fram till bakstycket' })]],
+            { desc: 'Mät öppningen i skåpet där lådan ska sitta. Appen räknar ut lådans mått utifrån skenorna.' }),
+        group('Tjocklekar', [[n('sideT', 'Lådsidor', { min: 3, step: 0.5 }), n('botT', 'Lådbotten', { min: 2, step: 0.5 }), n('groove', 'Spårdjup', { min: 0, step: 0.5, hint: 'Spåret för bottnen' })]],
+            { desc: 'Bottnen sitter i ett spår som fräses i lådans sidor, fram- och bakstycke.' }),
         group('Lådskenor', [
-            [sel('slideId', 'Typ', slideOptions)],
-            [n('clearance', 'Spel per sida', { min: 0, step: 0.1, show: p => p.slideId === 'custom' })],
-            [html(slideNote, { cls: 'text-[12px] faint leading-relaxed' })]
+            [sel('slideId', 'Typ av skenor', slideOptions)],
+            [n('clearance', 'Spel per sida', { min: 0, step: 0.1, show: p => p.slideId === 'custom', hint: 'Mellan skåpsida och lådsida' })],
+            [html(slideNote, { cls: 'text-[12px] muted leading-relaxed' })]
         ])
     ],
     shaker: [
-        group('Dörrmått', [[n('w', 'Bredd', { min: 100 }), n('h', 'Höjd', { min: 100 })]]),
+        group('Dörrmått', [[n('w', 'Bredd', { min: 100 }), n('h', 'Höjd', { min: 100 })]], { desc: 'Dörrens färdiga mått.' }),
         group('Profil', [
             [sel('profile', 'Ramprofil', profileOptions), sel('panelStyle', 'Fyllningstyp', panelOptions)],
             [html(profilePreview)]
-        ]),
+        ], { desc: 'Hur ramens innerkant och fyllningen ser ut, och vilka fräsar som behövs.' }),
         group('Ram och fyllning', [
-            [n('frame', 'Rambredd', { min: 20 }), n('tenon', 'Tapp/spår', { min: 0, hint: 'Ska stämma med fräsatsen' })],
-            [n('frameT', 'Ramtjocklek', { min: 5, step: 0.5 }), n('panelT', 'Fyllning', { min: 2, step: 0.5 })]
-        ]),
+            [n('frame', 'Rambredd', { min: 20, hint: 'Ramens synliga bredd' }), n('tenon', 'Tappdjup', { min: 0, hint: 'Enligt din fräsats' })],
+            [n('frameT', 'Ramtjocklek', { min: 5, step: 0.5 }), n('panelT', 'Fyllning', { min: 2, step: 0.5, hint: 'Fyllningens tjocklek' })]
+        ], { desc: 'Ramen består av två stående delar (stiles) och två liggande (rails). Tappdjupet är hur långt de liggande delarna går in i de stående.' }),
         group('Gångjärn', [[chk('hinges', 'Räkna gångjärn och borrschema')]])
     ]
 };
@@ -132,9 +140,11 @@ function renderField(f, item) {
                 step="${f.step || (f.int ? 1 : 'any')}" value="${esc(p[f.key])}" placeholder="${esc(DEFAULT_PARAMS[item.type][f.key])}"${f.hint ? ` title="${esc(f.hint)}"` : ''}><span class="unit">${f.unit}</span></div>
             ${f.hint ? `<span class="block text-[11px] faint mt-1">${esc(f.hint)}</span>` : ''}`;
     } else if (f.kind === 'select') {
-        wrap.innerHTML = `<label class="lbl" for="${id}">${esc(f.label)}</label><select id="${id}" class="fld">${f.options.map(([v, l]) => `<option value="${esc(v)}"${String(p[f.key]) === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
+        wrap.innerHTML = `<label class="lbl" for="${id}">${esc(f.label)}</label><select id="${id}" class="fld">${f.options.map(([v, l]) => `<option value="${esc(v)}"${String(p[f.key]) === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>
+            ${f.hint ? `<span class="block text-[11px] faint mt-1">${esc(f.hint)}</span>` : ''}`;
     } else if (f.kind === 'check') {
-        wrap.innerHTML = `<label class="inline-flex items-center gap-2.5 cursor-pointer"><span class="check-wrap"><input type="checkbox" id="${id}" class="check"${p[f.key] ? ' checked' : ''}>${CHECK_SVG}</span><span>${esc(f.label)}</span></label>`;
+        wrap.innerHTML = `<label class="inline-flex items-start gap-2.5 cursor-pointer"><span class="check-wrap mt-0.5"><input type="checkbox" id="${id}" class="check"${p[f.key] ? ' checked' : ''}>${CHECK_SVG}</span>
+            <span>${esc(f.label)}${f.hint ? `<span class="block text-[11px] faint mt-0.5">${esc(f.hint)}</span>` : ''}</span></label>`;
     } else if (f.kind === 'note') {
         wrap.className = 'text-[12px] faint leading-relaxed';
     } else if (f.kind === 'html') {
@@ -151,7 +161,7 @@ function renderForm() {
     for (const g of SCHEMA[item.type]) {
         const fs = document.createElement('fieldset');
         fs.className = 'space-y-3';
-        fs.innerHTML = `<legend class="group-title mb-3">${esc(g.title)}</legend>`;
+        fs.innerHTML = `<legend class="group-title mb-1">${esc(g.title)}</legend>${g.desc ? `<p class="text-[12px] muted leading-relaxed">${esc(g.desc)}</p>` : '<div></div>'}`;
         const rowEls = [];
         for (const row of g.rows) {
             const r = document.createElement('div');
@@ -270,12 +280,12 @@ function renderItemStatus(item, built) {
     warn.innerHTML = built.warnings.map(w => `<div>${esc(w)}</div>`).join('');
     const info = $('itemInfo');
     info.hidden = !built.info;
-    info.textContent = built.info ? built.info.join(' · ') : '';
+    info.textContent = built.info ? built.info.join(' ') : '';
     // Delar som klickats bort i 3D-vyn (nycklar som inte längre finns räknas inte)
     const keys = new Set(built.parts.map(p => p.key));
     const off = Object.keys(item.excluded).filter(k => keys.has(k));
     $('excludedNote').hidden = !off.length;
-    $('excludedText').textContent = off.length === 1 ? '1 del är borttagen ur kaplistan.' : `${off.length} delar är borttagna ur kaplistan.`;
+    $('excludedText').textContent = off.length === 1 ? '1 del är borttagen ur kaplistan (röd i 3D-vyn).' : `${off.length} delar är borttagna ur kaplistan (röda i 3D-vyn).`;
 }
 
 function renderResults(col, opt) {
@@ -284,7 +294,7 @@ function renderResults(col, opt) {
     $('statParts').textContent = col.partCount;
     $('statEdge').textContent = col.edgeMeters > 0 ? `${fmt(Math.ceil(col.edgeMeters * 1.1 * 10) / 10)} m` : '–';
     $('statSheets').textContent = opt.sheets;
-    $('statUtil').textContent = opt.sheets ? `${Math.round(opt.utilization * 100)} % nyttjat` : '';
+    $('statUtil').textContent = opt.sheets ? `${Math.round(opt.utilization * 100)} % av ytan används` : '';
     $('statCost').textContent = fmtKr(opt.totalCost);
 
     const warnings = [...col.warnings];
@@ -298,19 +308,19 @@ function renderResults(col, opt) {
     const byT = new Map();
     col.rows.forEach(r => { const k = thickKey(r.t); if (!byT.has(k)) byT.set(k, []); byT.get(k).push(r); });
     $('resList').innerHTML = col.rows.length ? `<table class="tbl">
-        <thead><tr><th>Nr</th><th class="!text-right">Antal</th><th class="!text-right">Längd</th><th class="!text-right">Bredd</th><th>Del</th>${showItems ? '<th>Objekt</th>' : ''}</tr></thead>
+        <thead><tr><th>Nr</th><th class="!text-right">Antal</th><th class="!text-right">Längd</th><th class="!text-right">Bredd</th><th>Del</th>${showItems ? '<th>Hör till</th>' : ''}</tr></thead>
         <tbody>${[...byT.values()].map(rows => `
             <tr><td colspan="${showItems ? 6 : 5}" class="!pt-5 !pb-2"><span class="font-semibold">${thickLabel(rows[0].t)}</span> <span class="faint text-[12px] ml-2 num">${rows.reduce((a, r) => a + r.count, 0)} delar</span></td></tr>
             ${rows.map(r => `<tr>
                 <td><span class="nr">${r.nr}</span></td>
                 <td class="num text-right">${r.count}</td>
-                <td class="num text-right whitespace-nowrap">${fmt(r.l)}${r.lock ? '<span class="faint" title="Ådring längs längden"> ⇅</span>' : ''}</td>
+                <td class="num text-right whitespace-nowrap">${fmt(r.l)}${r.lock ? '<span class="faint" title="Får inte vändas: ådringen ska gå längs längden"> ⇅</span>' : ''}</td>
                 <td class="num text-right">${fmt(r.w)}</td>
                 <td class="muted">${esc(r.names.join(', '))}</td>
                 ${showItems ? `<td class="faint">${esc(r.items.join(', '))}</td>` : ''}
             </tr>`).join('')}`).join('')}</tbody></table>
-        <p class="text-[12px] faint mt-3">Mått i mm, kantlist är redan avdragen. Numret står på skärschemat och etiketten.</p>`
-        : `<p class="muted">${activeItem() ? 'Inga delar valda. Klicka på delarna i 3D-vyn för att ta med dem igen.' : 'Lägg till ett objekt för att få en kaplista.'}</p>`;
+        <p class="text-[12px] muted mt-4 leading-relaxed">Mått i mm. Kantlistens tjocklek är redan avdragen, så delarna sågas till exakt dessa mått. Numret står också på skärschemat och etiketten.${col.rows.some(r => r.lock) ? ' ⇅ betyder att delen inte får vändas eftersom ådringen ska gå längs längden.' : ''}</p>`
+        : `<p class="muted">${activeItem() ? 'Alla delar är borttagna ur kaplistan. Klicka på de röda delarna i 3D-vyn för att ta med dem igen.' : 'Lägg till ett skåp, lådor eller en shaker-dörr i listan till vänster för att få en kaplista.'}</p>`;
 
     // Skärscheman per tjocklek
     const resOpt = $('resOpt');
@@ -323,10 +333,10 @@ function renderResults(col, opt) {
         const sec = document.createElement('section');
         sec.innerHTML = `<div class="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
                 <h3 class="font-semibold">${thickLabel(r.sheet.t)}</h3>
-                <span class="text-[12px] muted num">${r.sheets} ${r.sheets === 1 ? 'skiva' : 'skivor'}</span>
+                <span class="text-[12px] muted">${r.sheets} ${r.sheets === 1 ? 'ny skiva' : 'nya skivor'}${r.offcutsUsed.length ? ` + ${r.offcutsUsed.length} från spillager` : ''}</span>
                 <div class="ml-auto flex flex-wrap items-center gap-2 text-[12px] muted">
-                    <span>Skivformat</span>${inp('L', 'mm', 'w-28', state.settings.sheetL, 300)}<span>×</span>${inp('W', 'mm', 'w-28', state.settings.sheetW, 300)}
-                    <span class="ml-2">Pris</span>${inp('price', 'kr', 'w-24', state.settings.price, 0)}
+                    <span title="Tomt fält = standard från Inställningar">Skivans mått</span>${inp('L', 'mm', 'w-28', state.settings.sheetL, 300)}<span>×</span>${inp('W', 'mm', 'w-28', state.settings.sheetW, 300)}
+                    <span class="ml-2">Pris per skiva</span>${inp('price', 'kr', 'w-24', state.settings.price, 0)}
                 </div>
                 <span class="num text-[13px] w-20 text-right">${fmtKr(r.cost)}</span>
             </div>
@@ -343,17 +353,18 @@ function renderResults(col, opt) {
             fig.appendChild(c);
             const cap = document.createElement('figcaption');
             cap.className = 'mt-1.5 flex justify-between text-[12px] muted';
-            cap.innerHTML = `<span>${title} · ${b.placements.length} delar</span><span class="num">${Math.round(b.util * 100)} % nyttjat</span>`;
+            cap.innerHTML = `<span>${title} · ${b.placements.length} delar</span><span>${Math.round(b.util * 100)} % av skivan används</span>`;
             fig.appendChild(cap);
             grid.appendChild(fig);
         });
         resOpt.appendChild(sec);
     });
     if (!opt.materials.length) resOpt.innerHTML = '<p class="muted">Inget att optimera.</p>';
-    $('offcutCount').textContent = state.offcuts.length ? `${state.offcuts.length} i lager${opt.offcutsUsed.length ? `, ${opt.offcutsUsed.length} används` : ''}` : '';
+    $('offcutCount').textContent = state.offcuts.length ? `${state.offcuts.length} bitar i lager${opt.offcutsUsed.length ? `, varav ${opt.offcutsUsed.length} används här` : ''}` : '';
     const saveBtn = $('btnSaveOffcuts');
     saveBtn.hidden = !opt.newOffcuts.length && !opt.offcutsUsed.length;
-    saveBtn.textContent = `Spara spillbitar (${opt.newOffcuts.length})`;
+    saveBtn.textContent = `Spara ${opt.newOffcuts.length} spillbitar i lager`;
+    saveBtn.title = 'Lägger till spillbitarna från de här skärschemana i spillagret och tar bort de bitar som används.';
 
     // Beslag och fräsar
     const hwCount = col.hardware.length, toolCount = col.tools.length;
@@ -365,7 +376,7 @@ function renderResults(col, opt) {
             <td class="text-right text-[12px] space-x-3">${h.link ? extLink(h.link.url, `Visa hos ${h.link.label}`) : ''}${priceLink(h.query)}</td></tr>`).join('');
     $('resToolList').innerHTML = col.tools.map(t => `<tr><td>${esc(t.name)}</td><td class="muted">${esc(t.use)}</td><td class="faint">${esc(t.items.join(', '))}</td>
             <td class="text-right text-[12px]">${priceLink(t.query)}</td></tr>`).join('');
-    $('shopNote').textContent = shopUrl(state.settings, 'x') ? `Länkarna söker hos ${SHOPS[state.settings.shop].name}.` : 'Ange en länkmall under Inställningar för att visa köplänkar.';
+    $('shopNote').textContent = shopUrl(state.settings, 'x') ? `"Sök pris" söker hos ${SHOPS[state.settings.shop].name}. Du kan byta under Inställningar.` : 'Ange en länkmall under Inställningar för att visa prislänkar.';
 
     // Borrschema
     $('drillEmpty').hidden = !!col.drillings.length;
