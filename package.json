@@ -1,0 +1,22 @@
+{
+  "name": "cutyard",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Kaplistor, skivoptimering och beslagslistor för snickare.",
+  "type": "module",
+  "scripts": {
+    "build": "npm run build:css && npm run vendor",
+    "build:css": "tailwindcss -i ./src/input.css -o ./assets/app.css --minify",
+    "watch:css": "tailwindcss -i ./src/input.css -o ./assets/app.css --watch",
+    "vendor": "node scripts/vendor.js",
+    "test": "node --test tests/*.test.js",
+    "serve": "python3 -m http.server 8080"
+  },
+  "devDependencies": {
+    "@fontsource/inter": "5.3.0",
+    "@fontsource/jetbrains-mono": "5.3.0",
+    "qrcode-generator": "2.0.4",
+    "tailwindcss": "3.4.19",
+    "three": "0.128.0"
+  }
+}

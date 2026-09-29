@@ -4,345 +4,196 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>CutYard PRO</title>
-    <meta name="description" content="Kaplistor, skivoptimering och beslagslistor för skåp, lådor och shaker-dörrar.">
-    <!-- Tailwind CSS (play-CDN, byt mot en byggd CSS-fil i produktion) -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Three.js för 3D -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            color-scheme: dark;
-            --bg: #030712;
-            --fg: #E5E7EB;
-            --cad-grid: rgba(255, 255, 255, 0.03);
-            --cad-bg: #050505;
-            --accent: #3B82F6;
-            --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-        }
-        [hidden] { display: none !important; }
-
-        body {
-            font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
-            background-color: var(--bg);
-            background-image: radial-gradient(circle at 50% 0%, rgba(30, 58, 138, 0.15) 0%, transparent 60%),
-                              radial-gradient(circle at 80% 100%, rgba(139, 92, 246, 0.05) 0%, transparent 50%);
-            color: var(--fg);
-            overflow-x: hidden;
-            min-height: 100vh;
-        }
-
-        input[type=number], .font-mono, #statParts, #statEdge, #statCost, #resList, #resHardwareList {
-            font-family: var(--mono) !important;
-            font-variant-numeric: tabular-nums;
-        }
-
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
-        .no-scrollbar { scrollbar-width: none; }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-
-        input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-        input[type=number] { -moz-appearance: textfield; }
-
-        /* Formulärfält – accentfärgen styrs per modul via --accent */
-        .fld-label { display: block; font-size: 10px; font-weight: 700; color: #6B7280; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 6px; }
-        .fld { width: 100%; background: rgba(0,0,0,0.4); border: 1px solid rgba(55,65,81,0.8); border-radius: 0.5rem; padding: 0.5rem 0.75rem; color: #fff; box-shadow: inset 0 1px 2px rgba(0,0,0,0.5); transition: border-color .2s, box-shadow .2s; min-width: 0; }
-        .fld::placeholder { color: #4B5563; }
-        .fld:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent), inset 0 1px 2px rgba(0,0,0,0.5); }
-        .fld.qty { color: var(--accent); font-weight: 700; }
-        #modCabinet { --accent: #3B82F6; }
-        #modDrawer  { --accent: #A855F7; }
-        #modShaker  { --accent: #10B981; }
-        .warn-box { font-size: 12px; color: #FCD34D; background: rgba(120,53,15,0.25); border: 1px solid rgba(245,158,11,0.3); border-radius: 0.5rem; padding: 0.6rem 0.8rem; }
-
-        .tab-btn { position: relative; color: #6B7280; }
-        .tab-btn:hover { color: #D1D5DB; }
-        .tab-btn:focus-visible, button:focus-visible { outline: 2px solid #60A5FA; outline-offset: 2px; border-radius: 4px; }
-        .tab-btn.active { color: #60A5FA; font-weight: 600; text-shadow: 0 0 10px rgba(96, 165, 250, 0.4); }
-        .tab-btn::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 2px; background: transparent; transition: all 0.3s ease; }
-        .tab-btn.active::after { background: #3B82F6; box-shadow: 0 -2px 10px rgba(59, 130, 246, 0.6); }
-
-        .tab-content { display: none; }
-        .tab-content.active { display: block; animation: fadeIn 0.4s ease forwards; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
-
-        .viewer {
-            background-color: var(--cad-bg);
-            background-image: linear-gradient(var(--cad-grid) 1px, transparent 1px), linear-gradient(90deg, var(--cad-grid) 1px, transparent 1px);
-            background-size: 20px 20px;
-            box-shadow: inset 0 0 50px rgba(0,0,0,0.9);
-        }
-        .viewer canvas { display: block; width: 100% !important; height: 100% !important; }
-
-        .glass-card {
-            background: rgba(17, 24, 39, 0.4);
-            backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-            border: 1px solid rgba(255,255,255,0.05);
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.02), 0 4px 6px -1px rgba(0,0,0,0.2);
-            border-radius: 12px;
-        }
-        #resOpt canvas { border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); width: 100%; height: auto; display: block; }
-
-        .toast { transition: transform .35s ease, opacity .35s ease; }
-        .toast.is-hidden { transform: translateY(6rem); opacity: 0; pointer-events: none; }
-
-        @media (prefers-reduced-motion: reduce) {
-            *, *::before, *::after { animation: none !important; transition: none !important; }
-        }
-    </style>
+    <meta name="description" content="Kaplistor, skivoptimering, borrschema och beslagslistor för skåp, lådor och shaker-dörrar.">
+    <meta name="theme-color" content="#030712">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="assets/icon-192.png">
+    <link rel="preload" href="assets/fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="assets/app.css">
+    <script src="vendor/three.min.js" defer></script>
+    <script src="vendor/OrbitControls.js" defer></script>
+    <script type="module" src="src/app.js"></script>
 </head>
-<body class="min-h-screen flex flex-col selection:bg-blue-500/30 selection:text-blue-200">
+<body class="font-sans min-h-screen flex flex-col selection:bg-blue-500/30 selection:text-blue-200">
 
-    <!-- ANNONS: HEADER -->
+    <!-- ANNONS -->
     <div class="bg-[#030712] border-b border-white/5 py-2 px-4 text-center">
-        <div class="max-w-7xl mx-auto flex justify-center items-center">
+        <div class="max-w-7xl mx-auto flex justify-center">
             <div class="bg-white/5 border border-white/10 rounded-full px-4 py-1.5 text-[11px] font-medium text-gray-400 flex flex-wrap justify-center items-center gap-x-3 gap-y-1">
                 <span class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold px-2 py-0.5 rounded-full text-[9px] uppercase tracking-wider">Annons</span>
-                <span>Vill du nå ut till hantverkare och snickare? <a href="#" class="text-blue-400 hover:text-blue-300 transition-colors">Annonsera på CutYard →</a></span>
+                <span>Vill du nå ut till hantverkare och snickare? <a href="#" class="text-blue-400 hover:text-blue-300">Annonsera på CutYard →</a></span>
             </div>
         </div>
     </div>
 
     <header class="bg-gray-900/70 backdrop-blur-xl border-b border-white/5 sticky z-40 shadow-lg shadow-black/20" style="top: env(safe-area-inset-top, 0px);">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between items-center h-16 gap-3">
-                <div class="flex items-center">
-                    <div class="bg-gradient-to-br from-blue-500 to-indigo-600 p-1.5 rounded-lg mr-3 shadow-lg shadow-blue-500/20">
-                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5"></path></svg>
-                    </div>
-                    <h1 class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400 tracking-tight">CutYard<span class="text-blue-500 text-xs ml-1 font-mono font-normal">PRO</span></h1>
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center h-16 gap-3">
+            <div class="flex items-center min-w-0">
+                <div class="bg-gradient-to-br from-blue-500 to-indigo-600 p-1.5 rounded-lg mr-3 shadow-lg shadow-blue-500/20 shrink-0">
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5"></path></svg>
                 </div>
-                <div class="flex items-center gap-2 sm:gap-3">
-                    <input type="file" id="fileUpload" accept=".cutyard,application/json" class="hidden">
-                    <button id="btnLoadProject" type="button" class="text-gray-300 hover:text-white transition px-3 sm:px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/20 text-xs sm:text-sm flex items-center" title="Ladda projekt (.cutyard)">
-                        <svg class="w-4 h-4 sm:mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"></path></svg>
-                        <span class="hidden sm:inline">Ladda</span>
-                    </button>
-                    <button id="btnSaveProject" type="button" class="text-gray-300 hover:text-white transition px-3 sm:px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/20 text-xs sm:text-sm flex items-center" title="Spara projekt (.cutyard)">
-                        <svg class="w-4 h-4 sm:mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
-                        <span class="hidden sm:inline">Spara</span>
-                    </button>
-                    <div class="w-px h-6 bg-white/10"></div>
-                    <button id="btnSettings" type="button" class="text-gray-400 hover:text-white transition p-2 rounded-lg hover:bg-white/10 border border-transparent hover:border-white/10" title="Inställningar & priser" aria-label="Inställningar och priser">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                    </button>
-                </div>
+                <h1 class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400 tracking-tight">CutYard<span class="text-blue-500 text-xs ml-1 font-mono font-normal">PRO</span></h1>
+                <span id="offlineBadge" class="ml-3 text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-amber-900/30 border border-amber-500/30 rounded-full px-2 py-0.5" hidden>Offline</span>
             </div>
-            <div class="flex overflow-x-auto gap-8 text-sm text-gray-400 no-scrollbar relative top-[1px]" role="tablist">
-                <button type="button" role="tab" aria-selected="true" class="tab-btn active pb-3 px-1 whitespace-nowrap" data-target="modCabinet">Skåpsbyggaren</button>
-                <button type="button" role="tab" aria-selected="false" class="tab-btn pb-3 px-1 whitespace-nowrap" data-target="modDrawer">Lådkalkylatorn</button>
-                <button type="button" role="tab" aria-selected="false" class="tab-btn pb-3 px-1 whitespace-nowrap" data-target="modShaker">Shaker-dörrar</button>
-            </div>
+            <nav class="flex items-center gap-1.5 sm:gap-2" aria-label="Projekt">
+                <input type="file" id="fileUpload" accept=".cutyard,application/json" class="hidden">
+                <button id="btnNew" type="button" class="btn-ghost !px-2.5 sm:!px-3" title="Nytt projekt"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg><span class="hidden md:inline">Nytt</span></button>
+                <button id="btnLoadProject" type="button" class="btn-ghost !px-2.5 sm:!px-3" title="Öppna projekt (.cutyard)"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"></path></svg><span class="hidden md:inline">Öppna</span></button>
+                <button id="btnSaveProject" type="button" class="btn-ghost !px-2.5 sm:!px-3" title="Spara projekt (.cutyard)"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg><span class="hidden md:inline">Spara</span></button>
+                <div class="w-px h-6 bg-white/10 mx-0.5"></div>
+                <button id="btnMaterials" type="button" class="btn-ghost !px-2.5 sm:!px-3" title="Material och spillbitar"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg><span class="hidden md:inline">Material</span></button>
+                <button id="btnSettings" type="button" class="btn-ghost !px-2.5" title="Inställningar" aria-label="Inställningar"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg></button>
+            </nav>
         </div>
     </header>
 
     <main class="max-w-7xl mx-auto w-full px-4 py-6 sm:px-6 lg:px-8 lg:py-8 flex-1 flex flex-col gap-6">
 
-        <!-- SKÅP -->
-        <section id="modCabinet" class="tab-content active" role="tabpanel">
-            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
-                <div class="lg:col-span-5 bg-gray-900/40 backdrop-blur-md rounded-2xl p-5 sm:p-7 shadow-2xl shadow-black/40 border border-white/5 h-fit relative overflow-hidden min-w-0">
-                    <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-600 to-transparent"></div>
-                    <h2 class="text-xl font-semibold mb-6 flex items-center text-white tracking-tight">
-                        <span class="w-2 h-2 rounded-full bg-blue-500 mr-3 shadow-[0_0_8px_#3B82F6]"></span>
-                        Stommar & skåp
-                    </h2>
-                    <form id="formCabinet" class="space-y-6" novalidate>
-                        <div class="grid grid-cols-3 gap-3 sm:gap-4">
-                            <div><label class="fld-label" for="cabW">Bredd</label><input type="number" id="cabW" min="50" inputmode="decimal" placeholder="600" class="proj-input fld"></div>
-                            <div><label class="fld-label" for="cabH">Höjd</label><input type="number" id="cabH" min="50" inputmode="decimal" placeholder="800" class="proj-input fld"></div>
-                            <div><label class="fld-label" for="cabD">Djup</label><input type="number" id="cabD" min="50" inputmode="decimal" placeholder="400" class="proj-input fld"></div>
-                        </div>
-                        <div class="grid grid-cols-3 gap-3 sm:gap-4">
-                            <div><label class="fld-label" for="cabMatStom">Stomme</label><input type="number" id="cabMatStom" min="3" inputmode="decimal" placeholder="18" class="proj-input fld"></div>
-                            <div><label class="fld-label" for="cabMatBack">Bakstycke</label><input type="number" id="cabMatBack" min="0" inputmode="decimal" placeholder="4" class="proj-input fld" title="0 = inget bakstycke"></div>
-                            <div><label class="fld-label" for="cabQty">Antal</label><input type="number" id="cabQty" min="1" inputmode="numeric" placeholder="1" class="proj-input fld qty"></div>
-                        </div>
-                        <div class="bg-white/[0.02] p-4 rounded-xl border border-white/5">
-                            <label class="fld-label" for="cabShelves">Antal hyllplan</label>
-                            <input type="number" id="cabShelves" min="0" max="20" inputmode="numeric" placeholder="2" class="proj-input fld">
-                        </div>
-                        <label class="flex items-center gap-3 cursor-pointer group">
-                            <span class="relative flex items-center justify-center">
-                                <input type="checkbox" id="cabEdgeBand" checked class="proj-input peer appearance-none w-5 h-5 rounded border border-gray-600 bg-black/50 checked:bg-blue-600 checked:border-blue-500 transition-all cursor-pointer">
-                                <svg class="absolute w-3 h-3 text-white pointer-events-none opacity-0 peer-checked:opacity-100 transition-opacity" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path></svg>
-                            </span>
-                            <span class="text-sm font-medium text-gray-300 group-hover:text-white transition-colors">Kantlist på framkanter</span>
-                        </label>
-                        <p id="cabWarn" class="warn-box" hidden></p>
-                        <div class="pt-6 border-t border-white/5 flex justify-end">
-                            <button type="submit" class="w-full sm:w-auto bg-gradient-to-br from-blue-500 to-blue-700 hover:from-blue-400 hover:to-blue-600 text-white font-semibold py-2.5 px-8 rounded-lg transition-all active:scale-[0.98] shadow-[0_0_20px_rgba(59,130,246,0.3)] border border-blue-400/30">Visa kaplista</button>
-                        </div>
-                    </form>
-                </div>
-                <div class="lg:col-span-7 bg-gray-900/40 backdrop-blur-md rounded-2xl p-3 shadow-2xl shadow-black/40 border border-white/5 h-[360px] sm:h-[480px] flex flex-col relative min-w-0">
-                    <div class="absolute top-5 left-5 z-10 flex items-center bg-black/50 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-lg shadow-lg pointer-events-none">
-                        <div class="w-2 h-2 rounded-full bg-red-500 animate-pulse mr-2"></div>
-                        <span class="text-xs font-mono text-gray-300">Live 3D-vy</span>
-                    </div>
-                    <div id="container3D" class="viewer flex-1 w-full overflow-hidden cursor-grab active:cursor-grabbing relative border border-white/5 rounded-xl"></div>
-                    <p class="absolute bottom-5 left-5 right-5 z-10 text-[11px] text-gray-500 pointer-events-none">Dra för att rotera · Scrolla för att zooma · Klicka på en del för att ta bort den ur kaplistan</p>
-                </div>
-            </div>
-        </section>
-
-        <!-- LÅDOR -->
-        <section id="modDrawer" class="tab-content" role="tabpanel">
-            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
-                <div class="lg:col-span-5 bg-gray-900/40 backdrop-blur-md rounded-2xl p-5 sm:p-7 shadow-2xl shadow-black/40 border border-white/5 h-fit relative overflow-hidden min-w-0">
-                    <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 to-transparent"></div>
-                    <h2 class="text-xl font-semibold mb-6 flex items-center text-white tracking-tight">
-                        <span class="w-2 h-2 rounded-full bg-purple-500 mr-3 shadow-[0_0_8px_#A855F7]"></span>
-                        Lådkalkylatorn
-                    </h2>
-                    <form id="formDrawer" class="space-y-6" novalidate>
-                        <p class="text-xs text-gray-500 -mt-3">Ange skåpsöppningens innermått. Lådlådans bredd räknas fram utifrån skenornas spel.</p>
-                        <div class="grid grid-cols-3 gap-3 sm:gap-4">
-                            <div><label class="fld-label" for="drwW">Bredd</label><input type="number" id="drwW" min="50" inputmode="decimal" placeholder="564" class="proj-input fld"></div>
-                            <div><label class="fld-label" for="drwH">Höjd</label><input type="number" id="drwH" min="30" inputmode="decimal" placeholder="200" class="proj-input fld"></div>
-                            <div><label class="fld-label" for="drwD">Djup</label><input type="number" id="drwD" min="50" inputmode="decimal" placeholder="400" class="proj-input fld"></div>
-                        </div>
-                        <div class="grid grid-cols-3 gap-3 sm:gap-4">
-                            <div><label class="fld-label" for="drwMatSide">Sidor</label><input type="number" id="drwMatSide" min="3" inputmode="decimal" placeholder="15" class="proj-input fld"></div>
-                            <div><label class="fld-label" for="drwMatBot">Botten</label><input type="number" id="drwMatBot" min="2" inputmode="decimal" placeholder="4" class="proj-input fld"></div>
-                            <div><label class="fld-label" for="drwQty">Antal</label><input type="number" id="drwQty" min="1" inputmode="numeric" placeholder="1" class="proj-input fld qty"></div>
-                        </div>
-                        <div class="bg-white/[0.02] p-4 rounded-xl border border-white/5 grid grid-cols-2 gap-4">
-                            <div><label class="fld-label" for="drwClearance">Skenspel/sida (mm)</label><input type="number" id="drwClearance" min="0" step="0.1" inputmode="decimal" placeholder="12.7" class="proj-input fld"></div>
-                            <div><label class="fld-label" for="drwGroove">Spårdjup (mm)</label><input type="number" id="drwGroove" min="0" inputmode="decimal" placeholder="6" class="proj-input fld"></div>
-                        </div>
-                        <p id="drwWarn" class="warn-box" hidden></p>
-                        <div class="pt-6 border-t border-white/5 flex justify-end">
-                            <button type="submit" class="w-full sm:w-auto bg-gradient-to-br from-purple-500 to-purple-700 hover:from-purple-400 hover:to-purple-600 text-white font-semibold py-2.5 px-8 rounded-lg transition-all active:scale-[0.98] shadow-[0_0_20px_rgba(168,85,247,0.3)] border border-purple-400/30">Visa kaplista</button>
-                        </div>
-                    </form>
-                </div>
-                <div class="lg:col-span-7 bg-gray-900/40 backdrop-blur-md rounded-2xl p-3 shadow-2xl shadow-black/40 border border-white/5 h-[360px] sm:h-[480px] flex flex-col relative min-w-0">
-                    <div class="absolute top-5 left-5 z-10 flex items-center bg-black/50 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-lg shadow-lg pointer-events-none">
-                        <div class="w-2 h-2 rounded-full bg-red-500 animate-pulse mr-2"></div>
-                        <span class="text-xs font-mono text-gray-300">Live 3D-vy</span>
-                    </div>
-                    <div id="containerDrawer3D" class="viewer flex-1 w-full overflow-hidden cursor-grab active:cursor-grabbing relative border border-white/5 rounded-xl"></div>
-                    <p class="absolute bottom-5 left-5 right-5 z-10 text-[11px] text-gray-500 pointer-events-none">Klicka på en del för att ta bort den ur kaplistan</p>
-                </div>
-            </div>
-        </section>
-
-        <!-- SHAKER -->
-        <section id="modShaker" class="tab-content" role="tabpanel">
-            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
-                <div class="lg:col-span-5 bg-gray-900/40 backdrop-blur-md rounded-2xl p-5 sm:p-7 shadow-2xl shadow-black/40 border border-white/5 h-fit relative overflow-hidden min-w-0">
-                    <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 to-transparent"></div>
-                    <h2 class="text-xl font-semibold mb-6 flex items-center text-white tracking-tight">
-                        <span class="w-2 h-2 rounded-full bg-emerald-500 mr-3 shadow-[0_0_8px_#10B981]"></span>
-                        Shaker-dörrar
-                    </h2>
-                    <form id="formShaker" class="space-y-6" novalidate>
-                        <div class="grid grid-cols-2 gap-3 sm:gap-4">
-                            <div><label class="fld-label" for="shkW">Bredd</label><input type="number" id="shkW" min="100" inputmode="decimal" placeholder="400" class="proj-input fld"></div>
-                            <div><label class="fld-label" for="shkH">Höjd</label><input type="number" id="shkH" min="100" inputmode="decimal" placeholder="800" class="proj-input fld"></div>
-                        </div>
-                        <div class="grid grid-cols-3 gap-3 sm:gap-4">
-                            <div><label class="fld-label" for="shkFrame">Rambredd</label><input type="number" id="shkFrame" min="20" inputmode="decimal" placeholder="60" class="proj-input fld"></div>
-                            <div><label class="fld-label" for="shkMatFrame">Ramtjocklek</label><input type="number" id="shkMatFrame" min="10" inputmode="decimal" placeholder="21" class="proj-input fld"></div>
-                            <div><label class="fld-label" for="shkMatPanel">Fyllning</label><input type="number" id="shkMatPanel" min="3" inputmode="decimal" placeholder="6" class="proj-input fld"></div>
-                        </div>
-                        <div class="bg-white/[0.02] p-4 rounded-xl border border-white/5 grid grid-cols-2 gap-4">
-                            <div><label class="fld-label" for="shkTenon">Tapp/spårdjup (mm)</label><input type="number" id="shkTenon" min="0" inputmode="decimal" placeholder="10" class="proj-input fld"></div>
-                            <div><label class="fld-label" for="shkQty">Antal dörrar</label><input type="number" id="shkQty" min="1" inputmode="numeric" placeholder="1" class="proj-input fld qty"></div>
-                        </div>
-                        <p id="shkWarn" class="warn-box" hidden></p>
-                        <div class="pt-6 border-t border-white/5 flex justify-end">
-                            <button type="submit" class="w-full sm:w-auto bg-gradient-to-br from-emerald-500 to-emerald-700 hover:from-emerald-400 hover:to-emerald-600 text-white font-semibold py-2.5 px-8 rounded-lg transition-all active:scale-[0.98] shadow-[0_0_20px_rgba(16,185,129,0.3)] border border-emerald-400/30">Visa kaplista</button>
-                        </div>
-                    </form>
-                </div>
-                <div class="lg:col-span-7 bg-gray-900/40 backdrop-blur-md rounded-2xl p-3 shadow-2xl shadow-black/40 border border-white/5 h-[360px] sm:h-[480px] flex flex-col relative min-w-0">
-                    <div class="absolute top-5 left-5 z-10 flex items-center bg-black/50 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-lg shadow-lg pointer-events-none">
-                        <div class="w-2 h-2 rounded-full bg-red-500 animate-pulse mr-2"></div>
-                        <span class="text-xs font-mono text-gray-300">Live 3D-vy</span>
-                    </div>
-                    <div id="containerShaker3D" class="viewer flex-1 w-full overflow-hidden cursor-grab active:cursor-grabbing relative border border-white/5 rounded-xl"></div>
-                    <p class="absolute bottom-5 left-5 right-5 z-10 text-[11px] text-gray-500 pointer-events-none">Klicka på en del för att ta bort den ur kaplistan</p>
-                </div>
-            </div>
-        </section>
-
-        <!-- RESULTAT (uppdateras live) -->
-        <section id="resultSection" class="bg-gray-900/60 backdrop-blur-xl rounded-2xl p-5 sm:p-8 shadow-2xl shadow-black/60 border border-white/10 flex flex-col mt-2 relative overflow-hidden scroll-mt-32">
-            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-end border-b border-white/10 pb-6 mb-8 gap-4">
-                <div class="min-w-0">
-                    <h2 class="text-2xl sm:text-3xl font-bold text-white tracking-tight">Kalkyl & optimering</h2>
-                    <p id="resModuleTitle" class="text-sm text-blue-400 font-medium mt-1 font-mono">Räknar…</p>
+        <!-- PROJEKT -->
+        <section class="panel p-4 sm:p-5 flex flex-col gap-4" aria-labelledby="projectLabel">
+            <div class="flex flex-wrap items-end gap-3 justify-between">
+                <div class="min-w-0 flex-1 max-w-md">
+                    <label id="projectLabel" class="fld-label" for="projectName">Projekt</label>
+                    <input id="projectName" type="text" class="fld fld-text text-base font-semibold" maxlength="80" autocomplete="off">
                 </div>
                 <div class="flex flex-wrap gap-2">
-                    <button id="btnCopyCsv" type="button" class="bg-white/5 hover:bg-white/10 text-gray-200 text-sm font-semibold py-2.5 px-4 rounded-lg flex items-center transition-all border border-white/10">
-                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
-                        Kopiera lista
-                    </button>
-                    <button id="btnExportExcel" type="button" class="bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white text-sm font-semibold py-2.5 px-5 rounded-lg shadow-[0_0_15px_rgba(16,185,129,0.3)] flex items-center transition-all border border-green-400/30">
-                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                        Exportera CSV
-                    </button>
+                    <button type="button" class="btn-ghost" data-add="cabinet"><span class="text-blue-400 font-bold">+</span> Skåp</button>
+                    <button type="button" class="btn-ghost" data-add="drawer"><span class="text-purple-400 font-bold">+</span> Lådor</button>
+                    <button type="button" class="btn-ghost" data-add="shaker"><span class="text-emerald-400 font-bold">+</span> Shaker-dörr</button>
+                </div>
+            </div>
+            <div id="itemChips" class="flex gap-2 overflow-x-auto no-scrollbar pb-1" role="tablist" aria-label="Objekt i projektet"></div>
+        </section>
+
+        <!-- EDITOR -->
+        <section class="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8" aria-label="Redigera objekt">
+            <div id="editorPanel" class="lg:col-span-5 panel p-5 sm:p-7 h-fit relative overflow-hidden min-w-0">
+                <div id="editorBar" class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-600 to-transparent"></div>
+                <div class="flex items-start gap-3 mb-5">
+                    <div class="flex-1 min-w-0">
+                        <label class="fld-label" for="itemName">Namn</label>
+                        <input id="itemName" type="text" class="fld fld-text font-semibold" maxlength="60" autocomplete="off">
+                    </div>
+                    <div class="w-20">
+                        <label class="fld-label" for="itemQty">Antal</label>
+                        <input id="itemQty" type="number" min="1" max="999" inputmode="numeric" class="fld font-bold" style="color: var(--accent)">
+                    </div>
+                </div>
+                <div id="itemType" class="text-[11px] font-bold uppercase tracking-widest mb-4" style="color: var(--accent)"></div>
+                <form id="itemForm" class="space-y-5" novalidate></form>
+                <div id="itemInfo" class="mt-5 text-xs text-gray-400 num" hidden></div>
+                <div id="itemWarn" class="warn-box mt-5" hidden></div>
+                <div class="flex flex-wrap gap-2 justify-between pt-5 mt-6 border-t border-white/5">
+                    <div class="flex gap-2">
+                        <button id="btnDuplicate" type="button" class="btn-ghost">Duplicera</button>
+                        <button id="btnDelete" type="button" class="btn-danger">Ta bort</button>
+                    </div>
+                    <button id="btnShowResults" type="button" class="btn-primary">Visa kaplista</button>
+                </div>
+                <div id="deleteConfirm" class="mt-3 flex flex-wrap items-center gap-2 text-sm text-gray-300" hidden>
+                    <span>Ta bort <strong id="deleteName"></strong>?</span>
+                    <button id="btnDeleteYes" type="button" class="btn-danger !py-1">Ja, ta bort</button>
+                    <button id="btnDeleteNo" type="button" class="btn-ghost !py-1">Avbryt</button>
+                </div>
+            </div>
+            <div class="lg:col-span-7 panel p-3 h-[360px] sm:h-[520px] flex flex-col relative min-w-0 lg:sticky lg:top-24">
+                <div class="absolute top-5 left-5 z-10 flex items-center bg-black/50 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-lg pointer-events-none">
+                    <div class="w-2 h-2 rounded-full bg-red-500 animate-pulse mr-2"></div>
+                    <span class="text-xs font-mono text-gray-300">Live 3D-vy</span>
+                </div>
+                <label class="absolute top-5 right-5 z-10 flex items-center gap-2 bg-black/50 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-lg text-xs text-gray-300 cursor-pointer">
+                    <span class="check-wrap"><input id="showFronts" type="checkbox" class="check !w-4 !h-4" checked><svg class="check-mark !w-2.5 !h-2.5" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path></svg></span>
+                    Visa fronter
+                </label>
+                <div id="viewer3D" class="viewer flex-1 w-full overflow-hidden cursor-grab active:cursor-grabbing relative border border-white/5 rounded-xl"></div>
+                <p class="absolute bottom-5 left-5 right-5 z-10 text-[11px] text-gray-500 pointer-events-none">Dra för att rotera · Scrolla för att zooma · Klicka på en del för att ta bort den ur kaplistan</p>
+            </div>
+        </section>
+
+        <!-- RESULTAT -->
+        <section id="resultSection" class="panel !bg-gray-900/60 p-5 sm:p-8 flex flex-col relative scroll-mt-24" aria-labelledby="resTitle">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-end border-b border-white/10 pb-6 mb-6 gap-4">
+                <div class="min-w-0">
+                    <h2 id="resTitle" class="text-2xl sm:text-3xl font-bold text-white tracking-tight">Kalkyl & optimering</h2>
+                    <div class="mt-3 inline-flex bg-black/40 border border-white/10 rounded-lg p-1" role="group" aria-label="Omfattning">
+                        <button type="button" class="seg seg-on" data-scope="project">Hela projektet</button>
+                        <button type="button" class="seg" data-scope="item">Bara <span id="scopeItemName">objektet</span></button>
+                    </div>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <button id="btnCopyCsv" type="button" class="btn-ghost">Kopiera lista</button>
+                    <button id="btnExportCsv" type="button" class="btn-ghost">Exportera CSV</button>
+                    <div class="flex items-stretch rounded-lg overflow-hidden border border-blue-400/30">
+                        <button id="btnPrint" type="button" class="btn-primary !rounded-none !border-0">Skriv ut / PDF</button>
+                        <label class="flex items-center gap-2 px-3 bg-blue-900/30 text-xs text-blue-100 cursor-pointer" title="Lägg till etiketter med QR-kod, en per del">
+                            <span class="check-wrap"><input id="printLabels" type="checkbox" class="check !w-4 !h-4" checked><svg class="check-mark !w-2.5 !h-2.5" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path></svg></span>
+                            Etiketter
+                        </label>
+                    </div>
                 </div>
             </div>
 
             <div id="resWarn" class="warn-box mb-6" hidden></div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-5 mb-10">
-                <div class="bg-black/40 rounded-xl p-5 border border-white/5">
-                    <span class="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">Totalt antal delar</span>
-                    <span id="statParts" class="text-4xl font-light text-white">0</span>
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-10">
+                <div class="bg-black/40 rounded-xl p-4 sm:p-5 border border-white/5 min-w-0">
+                    <span class="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">Delar</span>
+                    <span id="statParts" class="num text-3xl sm:text-4xl font-light text-white">0</span>
                 </div>
-                <div class="bg-black/40 rounded-xl p-5 border border-white/5">
-                    <span class="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">Kantlist åtgång</span>
-                    <span id="statEdge" class="text-4xl font-light text-white">–</span>
+                <div class="bg-black/40 rounded-xl p-4 sm:p-5 border border-white/5 min-w-0">
+                    <span class="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">Kantlist</span>
+                    <span id="statEdge" class="num text-3xl sm:text-4xl font-light text-white">–</span>
+                    <span class="block text-[11px] text-gray-500 mt-1">inkl. 10 % spill</span>
                 </div>
-                <div class="bg-gradient-to-br from-blue-900/20 to-indigo-900/20 rounded-xl p-5 border border-blue-500/20">
-                    <span class="block text-[10px] font-bold text-blue-400 uppercase tracking-widest mb-2">Uppskattad skivkostnad</span>
-                    <span id="statCost" class="text-4xl font-light text-blue-100">0 kr</span>
-                    <span id="statSheets" class="block text-xs text-blue-300/70 font-mono mt-1"></span>
+                <div class="bg-black/40 rounded-xl p-4 sm:p-5 border border-white/5 min-w-0">
+                    <span class="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">Skivor</span>
+                    <span id="statSheets" class="num text-3xl sm:text-4xl font-light text-white">0</span>
+                    <span id="statUtil" class="block text-[11px] text-gray-500 mt-1 num"></span>
+                </div>
+                <div class="bg-gradient-to-br from-blue-900/20 to-indigo-900/20 rounded-xl p-4 sm:p-5 border border-blue-500/20 min-w-0">
+                    <span class="block text-[10px] font-bold text-blue-400 uppercase tracking-widest mb-2">Skivkostnad</span>
+                    <span id="statCost" class="num text-3xl sm:text-4xl font-light text-blue-100">0 kr</span>
+                    <span id="statOffcuts" class="block text-[11px] text-blue-300/70 mt-1"></span>
                 </div>
             </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-10">
                 <div class="min-w-0">
-                    <h3 class="text-sm font-bold uppercase tracking-widest mb-5 text-gray-300 flex items-center">
-                        <svg class="w-4 h-4 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>
-                        Exakt kaplista
-                    </h3>
-                    <div id="resList" class="space-y-4 lg:max-h-[640px] overflow-y-auto lg:pr-3"></div>
+                    <h3 class="text-sm font-bold uppercase tracking-widest mb-5 text-gray-300">Kaplista</h3>
+                    <div id="resList" class="space-y-4 lg:max-h-[720px] overflow-y-auto lg:pr-3"></div>
                 </div>
                 <div class="min-w-0 lg:pl-6 lg:border-l lg:border-white/5">
-                    <h3 class="text-sm font-bold uppercase tracking-widest mb-5 text-gray-300 flex flex-wrap gap-2 justify-between items-center">
-                        <span class="flex items-center"><svg class="w-4 h-4 mr-2 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"></path></svg> Skivoptimering</span>
-                        <span id="sheetBadge" class="text-[10px] font-mono font-medium text-yellow-400 bg-yellow-900/20 border border-yellow-700/30 px-2.5 py-1 rounded-full">2440 × 1220 mm</span>
+                    <h3 class="text-sm font-bold uppercase tracking-widest mb-2 text-gray-300 flex flex-wrap gap-2 justify-between items-center">
+                        <span>Skärscheman</span>
+                        <button id="btnSaveOffcuts" type="button" class="btn-ghost !py-1 !px-3 !text-xs normal-case tracking-normal" hidden>Spara spillbitar</button>
                     </h3>
-                    <div id="resOpt" class="space-y-6 lg:max-h-[640px] overflow-y-auto lg:pr-3"></div>
+                    <p class="text-xs text-gray-500 mb-5">Alla snitt går rakt igenom skivan (giljotinsnitt). Streckade ytor är spillbitar som är stora nog att spara.</p>
+                    <div id="resOpt" class="space-y-6 lg:max-h-[720px] overflow-y-auto lg:pr-3"></div>
                 </div>
             </div>
 
             <div id="resHardwareSection" class="mt-10 border-t border-white/10 pt-8" hidden>
-                <h3 class="text-sm font-bold uppercase tracking-widest mb-5 text-gray-300 flex items-center">
-                    <svg class="w-4 h-4 mr-2 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z"></path></svg>
-                    Beslagslista
-                </h3>
+                <div class="flex flex-wrap gap-3 justify-between items-center mb-5">
+                    <h3 class="text-sm font-bold uppercase tracking-widest text-gray-300">Beslagslista</h3>
+                    <button id="btnBuyAll" type="button" class="btn-ghost !py-1.5 !text-xs">Kopiera inköpslista</button>
+                </div>
                 <div class="bg-black/40 rounded-xl border border-white/5 overflow-x-auto">
-                    <table class="w-full text-left text-sm text-gray-300">
-                        <thead class="bg-white/[0.03] text-[10px] font-bold text-gray-500 uppercase tracking-widest border-b border-white/5">
-                            <tr>
-                                <th class="px-5 py-4">Produkt</th>
-                                <th class="px-5 py-4 w-24 text-center">Antal</th>
-                                <th class="px-5 py-4 w-24">Enhet</th>
-                            </tr>
-                        </thead>
-                        <tbody id="resHardwareList" class="divide-y divide-white/5"></tbody>
+                    <table class="tbl w-full text-sm text-gray-300">
+                        <thead class="bg-white/[0.03]"><tr><th>Produkt</th><th class="text-center">Antal</th><th>Enhet</th><th class="text-right">Köp</th></tr></thead>
+                        <tbody id="resHardwareList"></tbody>
+                    </table>
+                </div>
+                <p id="shopNote" class="text-[11px] text-gray-500 mt-2"></p>
+            </div>
+
+            <div id="resDrillSection" class="mt-10 border-t border-white/10 pt-8" hidden>
+                <h3 class="text-sm font-bold uppercase tracking-widest mb-2 text-gray-300">Borrschema gångjärn</h3>
+                <p class="text-xs text-gray-500 mb-5 num">Kopphål Ø35 × 13 mm, centrum 22,5 mm från dörrkanten. Mått räknas från dörrens överkant.</p>
+                <div class="bg-black/40 rounded-xl border border-white/5 overflow-x-auto">
+                    <table class="tbl w-full text-sm text-gray-300">
+                        <thead class="bg-white/[0.03]"><tr><th>Objekt</th><th>Dörr</th><th class="text-center">Antal</th><th>Dörrmått (mm)</th><th>Gångjärnssida</th><th>Hål från överkant (mm)</th></tr></thead>
+                        <tbody id="resDrillList"></tbody>
                     </table>
                 </div>
             </div>
@@ -351,7 +202,7 @@
 
     <footer class="bg-[#030712] border-t border-white/5 py-8 px-4 mt-auto">
         <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4 text-xs text-gray-600 font-medium">
-            <p>&copy; <span id="year"></span> CutYard PRO. Professionell skivoptimering.</p>
+            <p>&copy; <span id="year"></span> CutYard PRO. Beslagsmått är riktvärden – kontrollera mot tillverkarens anvisning.</p>
             <div class="flex items-center gap-4">
                 <span class="uppercase tracking-widest text-[10px]">Sponsorer</span>
                 <span class="bg-white/5 border border-white/5 px-3 py-1.5 rounded-md text-gray-500 font-mono">Din logga här</span>
@@ -361,725 +212,89 @@
 
     <!-- Inställningar -->
     <div id="modalSettings" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-50 p-4" hidden>
-        <div class="bg-gray-900/95 rounded-2xl w-full max-w-md max-h-full overflow-y-auto shadow-2xl shadow-black/80 border border-white/10 p-6 sm:p-8 space-y-6" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
-            <h3 id="settingsTitle" class="text-xl font-bold text-white border-b border-white/10 pb-4">Globala inställningar</h3>
-            <div class="grid grid-cols-2 gap-4" style="--accent:#3B82F6">
+        <div class="bg-gray-900/95 rounded-2xl w-full max-w-lg max-h-full overflow-y-auto shadow-2xl border border-white/10 p-6 sm:p-8 space-y-5" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+            <h3 id="settingsTitle" class="text-xl font-bold text-white border-b border-white/10 pb-4">Inställningar</h3>
+            <div class="grid grid-cols-2 gap-4">
                 <div><label class="fld-label" for="setKerf">Sågspalt (mm)</label><input type="number" id="setKerf" min="0" step="0.1" class="fld"></div>
+                <div><label class="fld-label" for="setTrim">Kantputs/sida (mm)</label><input type="number" id="setTrim" min="0" step="1" class="fld"></div>
                 <div><label class="fld-label" for="setEdgeThick">Kantlist (mm)</label><input type="number" id="setEdgeThick" min="0" step="0.1" class="fld"></div>
-                <div><label class="fld-label" for="setSheetL">Skivlängd (mm)</label><input type="number" id="setSheetL" min="300" class="fld"></div>
-                <div><label class="fld-label" for="setSheetW">Skivbredd (mm)</label><input type="number" id="setSheetW" min="300" class="fld"></div>
-                <div><label class="fld-label" for="setPriceMain">Pris skiva ≥ 9 mm (kr)</label><input type="number" id="setPriceMain" min="0" class="fld"></div>
-                <div><label class="fld-label" for="setPriceThin">Pris skiva &lt; 9 mm (kr)</label><input type="number" id="setPriceThin" min="0" class="fld"></div>
+                <div><label class="fld-label" for="setReveal">Frontspel mot kant (mm)</label><input type="number" id="setReveal" min="0" step="0.5" class="fld"></div>
+                <div><label class="fld-label" for="setFrontGap">Spel mellan fronter (mm)</label><input type="number" id="setFrontGap" min="0" step="0.5" class="fld"></div>
+                <div></div>
+                <div><label class="fld-label" for="setMinOffcutL">Minsta spillbit, längd</label><input type="number" id="setMinOffcutL" min="0" class="fld"></div>
+                <div><label class="fld-label" for="setMinOffcutW">Minsta spillbit, bredd</label><input type="number" id="setMinOffcutW" min="0" class="fld"></div>
             </div>
-            <div class="bg-blue-900/10 border border-blue-500/20 p-4 rounded-xl">
-                <label class="flex items-start gap-3 cursor-pointer group">
-                    <span class="relative flex items-center justify-center mt-0.5">
-                        <input type="checkbox" id="setGrainLock" class="peer appearance-none w-5 h-5 rounded border border-gray-600 bg-black/50 checked:bg-blue-600 checked:border-blue-500 transition-all cursor-pointer">
-                        <svg class="absolute w-3 h-3 text-white pointer-events-none opacity-0 peer-checked:opacity-100 transition-opacity" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path></svg>
-                    </span>
-                    <span>
-                        <span class="text-sm text-gray-200 block font-medium group-hover:text-white transition-colors">Lås träriktning globalt</span>
-                        <span class="text-xs text-gray-500 mt-1 block">Optimeraren roterar inga delar. Behövs för fanér och synlig ådring.</span>
-                    </span>
-                </label>
+            <label class="flex items-start gap-3 cursor-pointer bg-blue-900/10 border border-blue-500/20 p-4 rounded-xl">
+                <span class="check-wrap mt-0.5"><input type="checkbox" id="setGrainLock" class="check"><svg class="check-mark" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path></svg></span>
+                <span><span class="text-sm text-gray-200 block font-medium">Lås träriktning för alla delar</span>
+                <span class="text-xs text-gray-500 mt-1 block">Normalt låses bara material med ådring (i materialbiblioteket). Dolda delar som lådbottnar får alltid roteras.</span></span>
+            </label>
+            <div class="grid grid-cols-1 gap-4 pt-2 border-t border-white/5">
+                <div><label class="fld-label" for="setShop">Butikslänkar för beslag</label>
+                    <select id="setShop" class="fld"></select></div>
+                <div id="setShopTemplateWrap"><label class="fld-label" for="setShopTemplate">Egen länkmall ({q} = sökord)</label>
+                    <input type="url" id="setShopTemplate" class="fld fld-text text-sm" placeholder="https://www.exempel.se/sok?q={q}&amp;ref=cutyard"></div>
             </div>
-            <div class="flex justify-end gap-3 pt-6 border-t border-white/5">
-                <button id="btnCloseSettings" type="button" class="hover:bg-white/5 border border-transparent hover:border-white/10 px-5 py-2.5 rounded-lg text-gray-300 text-sm font-medium transition-all">Avbryt</button>
-                <button id="btnSaveSettings" type="button" class="bg-blue-600 hover:bg-blue-500 px-6 py-2.5 rounded-lg text-white text-sm font-bold shadow-[0_0_15px_rgba(59,130,246,0.3)] transition-all">Spara ändringar</button>
+            <div class="flex justify-end gap-3 pt-5 border-t border-white/5">
+                <button id="btnCloseSettings" type="button" class="btn-ghost">Avbryt</button>
+                <button id="btnSaveSettings" type="button" class="btn-primary">Spara</button>
             </div>
         </div>
     </div>
 
-    <div id="toast" role="status" aria-live="polite" class="toast is-hidden fixed bottom-6 right-4 sm:right-6 left-4 sm:left-auto bg-gradient-to-r from-gray-900 to-black border border-gray-700 text-white px-5 py-4 rounded-xl shadow-2xl z-50 flex items-center" style="margin-bottom: env(safe-area-inset-bottom, 0px);">
-        <span id="toastIcon" class="bg-green-500/20 text-green-400 p-1.5 rounded-full mr-3">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path></svg>
-        </span>
-        <span id="toastMsg" class="font-medium text-sm">Sparat!</span>
+    <!-- Material -->
+    <div id="modalMaterials" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-50 p-4" hidden>
+        <div class="bg-gray-900/95 rounded-2xl w-full max-w-4xl max-h-full overflow-y-auto shadow-2xl border border-white/10 p-5 sm:p-8 space-y-5" role="dialog" aria-modal="true" aria-labelledby="matTitle">
+            <div class="flex flex-wrap justify-between items-center gap-3 border-b border-white/10 pb-4">
+                <h3 id="matTitle" class="text-xl font-bold text-white">Material och spillbitar</h3>
+                <p class="text-xs text-gray-500">Priserna är exempel. Ange dina egna.</p>
+            </div>
+            <div class="overflow-x-auto -mx-1">
+                <table class="tbl w-full text-sm min-w-[760px]">
+                    <thead><tr><th>Namn</th><th>Tjocklek</th><th>Längd</th><th>Bredd</th><th>Pris/skiva</th><th title="Delar roteras inte på skivan">Ådring</th><th title="Kan kantlistas">Kantlist</th><th></th></tr></thead>
+                    <tbody id="matRows"></tbody>
+                </table>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <button id="btnAddMaterial" type="button" class="btn-ghost">+ Lägg till material</button>
+                <button id="btnResetMaterials" type="button" class="btn-ghost">Återställ standardlistan</button>
+            </div>
+            <div class="pt-5 border-t border-white/5">
+                <h4 class="text-sm font-bold text-gray-300 mb-1">Spillager</h4>
+                <p class="text-xs text-gray-500 mb-3">Sparade spillbitar används före nya skivor i optimeringen och kostar ingenting.</p>
+                <div id="offcutList" class="flex flex-wrap gap-2"></div>
+                <div class="flex flex-wrap items-end gap-2 mt-4">
+                    <div><label class="fld-label" for="newOffMat">Material</label><select id="newOffMat" class="fld !w-56"></select></div>
+                    <div><label class="fld-label" for="newOffL">Längd</label><input id="newOffL" type="number" min="1" class="fld !w-24"></div>
+                    <div><label class="fld-label" for="newOffW">Bredd</label><input id="newOffW" type="number" min="1" class="fld !w-24"></div>
+                    <button id="btnAddOffcut" type="button" class="btn-ghost">+ Lägg till spillbit</button>
+                </div>
+            </div>
+            <div class="flex justify-end gap-3 pt-5 border-t border-white/5">
+                <button id="btnCloseMaterials" type="button" class="btn-ghost">Avbryt</button>
+                <button id="btnSaveMaterials" type="button" class="btn-primary">Spara</button>
+            </div>
+        </div>
     </div>
 
-    <script>
-    (() => {
-        'use strict';
+    <!-- Bekräfta nytt projekt -->
+    <div id="modalNew" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-50 p-4" hidden>
+        <div class="bg-gray-900/95 rounded-2xl w-full max-w-sm shadow-2xl border border-white/10 p-6 space-y-5" role="dialog" aria-modal="true" aria-labelledby="newTitle">
+            <h3 id="newTitle" class="text-lg font-bold text-white">Starta ett nytt projekt?</h3>
+            <p class="text-sm text-gray-400">Det nuvarande projektet ersätts. Spara det först om du vill behålla det.</p>
+            <div class="flex flex-wrap justify-end gap-2">
+                <button id="btnNewCancel" type="button" class="btn-ghost">Avbryt</button>
+                <button id="btnNewExample" type="button" class="btn-ghost">Exempelprojekt</button>
+                <button id="btnNewEmpty" type="button" class="btn-primary">Tomt projekt</button>
+            </div>
+        </div>
+    </div>
 
-        // ---------- Hjälpfunktioner ----------
-        const $ = id => document.getElementById(id);
-        const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-        const round1 = n => Math.round(n * 10) / 10;
-        const fmt = n => round1(n).toLocaleString('sv-SE', { maximumFractionDigits: 1 });
-        const fmtKr = n => Math.round(n).toLocaleString('sv-SE') + ' kr';
+    <div id="toast" role="status" aria-live="polite" class="toast is-hidden fixed bottom-6 right-4 sm:right-6 left-4 sm:left-auto bg-gradient-to-r from-gray-900 to-black border border-gray-700 text-white px-5 py-4 rounded-xl shadow-2xl z-50 flex items-center gap-3" style="margin-bottom: env(safe-area-inset-bottom, 0px);">
+        <span id="toastIcon" class="p-1.5 rounded-full bg-green-500/20 text-green-400"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path></svg></span>
+        <span id="toastMsg" class="font-medium text-sm"></span>
+    </div>
 
-        // Läser ett numeriskt fält. Tomt fält = platshållarens standardvärde; 0 är ett giltigt värde.
-        function num(id, def, { min = -Infinity, max = Infinity, int = false } = {}) {
-            const raw = String($(id).value).trim().replace(',', '.');
-            if (raw === '') return def;
-            const v = int ? parseInt(raw, 10) : parseFloat(raw);
-            if (!Number.isFinite(v)) return def;
-            return Math.min(max, Math.max(min, v));
-        }
-
-        const store = {
-            get(key) { try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } },
-            set(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch { /* privat läge o.dyl. */ } }
-        };
-
-        let toastTimer;
-        function showToast(msg, isError = false) {
-            const t = $('toast');
-            $('toastMsg').textContent = msg;
-            $('toastIcon').className = (isError ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400') + ' p-1.5 rounded-full mr-3';
-            t.classList.remove('is-hidden');
-            clearTimeout(toastTimer);
-            toastTimer = setTimeout(() => t.classList.add('is-hidden'), 3000);
-        }
-
-        function download(filename, content, type) {
-            const url = URL.createObjectURL(new Blob([content], { type }));
-            const a = document.createElement('a');
-            a.href = url; a.download = filename;
-            document.body.appendChild(a); a.click(); a.remove();
-            setTimeout(() => URL.revokeObjectURL(url), 1000);
-        }
-
-        // ---------- Inställningar ----------
-        const DEFAULTS = { kerf: 2.5, edgeThick: 1.0, priceMain: 495, priceThin: 189, sheetL: 2440, sheetW: 1220, grainLock: false };
-        let appSettings = { ...DEFAULTS };
-
-        function sanitizeSettings(s) {
-            const out = { ...DEFAULTS };
-            if (!s || typeof s !== 'object') return out;
-            for (const k of Object.keys(DEFAULTS)) {
-                if (k === 'grainLock') out[k] = !!s[k];
-                else if (Number.isFinite(+s[k]) && +s[k] >= 0) out[k] = +s[k];
-            }
-            if (out.sheetL < 300) out.sheetL = DEFAULTS.sheetL;
-            if (out.sheetW < 300) out.sheetW = DEFAULTS.sheetW;
-            return out;
-        }
-
-        function fillSettingsForm() {
-            $('setKerf').value = appSettings.kerf;
-            $('setEdgeThick').value = appSettings.edgeThick;
-            $('setPriceMain').value = appSettings.priceMain;
-            $('setPriceThin').value = appSettings.priceThin;
-            $('setSheetL').value = appSettings.sheetL;
-            $('setSheetW').value = appSettings.sheetW;
-            $('setGrainLock').checked = appSettings.grainLock;
-        }
-
-        function openSettings() { fillSettingsForm(); $('modalSettings').hidden = false; $('setKerf').focus(); }
-        function closeSettings() { $('modalSettings').hidden = true; $('btnSettings').focus(); }
-
-        $('btnSettings').addEventListener('click', openSettings);
-        $('btnCloseSettings').addEventListener('click', closeSettings);
-        $('modalSettings').addEventListener('click', e => { if (e.target === e.currentTarget) closeSettings(); });
-        document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('modalSettings').hidden) closeSettings(); });
-
-        $('btnSaveSettings').addEventListener('click', () => {
-            const read = (id, def, min) => { const v = parseFloat($(id).value); return Number.isFinite(v) && v >= min ? v : def; };
-            appSettings = sanitizeSettings({
-                kerf: read('setKerf', DEFAULTS.kerf, 0),
-                edgeThick: read('setEdgeThick', DEFAULTS.edgeThick, 0),
-                priceMain: read('setPriceMain', DEFAULTS.priceMain, 0),
-                priceThin: read('setPriceThin', DEFAULTS.priceThin, 0),
-                sheetL: read('setSheetL', DEFAULTS.sheetL, 300),
-                sheetW: read('setSheetW', DEFAULTS.sheetW, 300),
-                grainLock: $('setGrainLock').checked
-            });
-            store.set('cutyardSettings', appSettings);
-            closeSettings();
-            recompute();
-            showToast('Inställningar sparade');
-        });
-
-        // ---------- 3D ----------
-        const MAT = window.THREE ? {
-            cabSide: new THREE.MeshStandardMaterial({ color: 0x60A5FA, transparent: true, opacity: 0.85, roughness: 0.7 }),
-            cabShelf: new THREE.MeshStandardMaterial({ color: 0x3B82F6, roughness: 0.7 }),
-            cabBack: new THREE.MeshStandardMaterial({ color: 0x4b5563, roughness: 0.9 }),
-            drw: new THREE.MeshStandardMaterial({ color: 0x9333EA, roughness: 0.7 }),
-            drwBot: new THREE.MeshStandardMaterial({ color: 0xC4B5FD, roughness: 0.8 }),
-            shkFrame: new THREE.MeshStandardMaterial({ color: 0x10B981, roughness: 0.7 }),
-            shkPanel: new THREE.MeshStandardMaterial({ color: 0x6EE7B7, roughness: 0.8 }),
-            desel: new THREE.MeshStandardMaterial({ color: 0xef4444, transparent: true, opacity: 0.25, wireframe: true })
-        } : null;
-
-        function makeViewer(id) {
-            const el = $(id);
-            const v = { el, selection: {}, group: null, frameKey: '', ok: false };
-            if (!window.THREE || !THREE.OrbitControls) {
-                el.innerHTML = '<p class="p-6 pt-16 text-sm text-gray-500">3D-vyn kunde inte laddas. Kaplistan fungerar ändå.</p>';
-                return v;
-            }
-            try {
-                v.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-            } catch {
-                el.innerHTML = '<p class="p-6 pt-16 text-sm text-gray-500">Din webbläsare saknar WebGL-stöd. Kaplistan fungerar ändå.</p>';
-                return v;
-            }
-            v.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-            el.appendChild(v.renderer.domElement);
-            v.scene = new THREE.Scene();
-            v.camera = new THREE.PerspectiveCamera(45, 1, 1, 50000);
-            v.controls = new THREE.OrbitControls(v.camera, v.renderer.domElement);
-            v.controls.enableDamping = true;
-            v.scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-            const dl = new THREE.DirectionalLight(0xffffff, 0.7); dl.position.set(1000, 2000, 1500); v.scene.add(dl);
-            const dl2 = new THREE.DirectionalLight(0xffffff, 0.25); dl2.position.set(-1500, -500, -1000); v.scene.add(dl2);
-            v.group = new THREE.Group(); v.scene.add(v.group);
-            v.ok = true;
-
-            v.resize = () => {
-                const w = el.clientWidth, h = el.clientHeight;
-                if (!w || !h) return;
-                v.camera.aspect = w / h;
-                v.camera.updateProjectionMatrix();
-                v.renderer.setSize(w, h, false);
-            };
-            if ('ResizeObserver' in window) new ResizeObserver(v.resize).observe(el);
-            else window.addEventListener('resize', v.resize);
-
-            // Klick (inte drag) växlar om en del ska ingå i kaplistan
-            const ray = new THREE.Raycaster(), mouse = new THREE.Vector2();
-            let down = null;
-            el.addEventListener('pointerdown', e => { down = { x: e.clientX, y: e.clientY }; });
-            el.addEventListener('pointerup', e => {
-                if (!down || Math.abs(e.clientX - down.x) > 4 || Math.abs(e.clientY - down.y) > 4) return;
-                const r = el.getBoundingClientRect();
-                mouse.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
-                ray.setFromCamera(mouse, v.camera);
-                const hit = ray.intersectObjects(v.group.children)[0];
-                if (!hit) return;
-                const o = hit.object;
-                o.userData.selected = !o.userData.selected;
-                o.material = o.userData.selected ? o.userData.mat : MAT.desel;
-                v.selection[o.name] = o.userData.selected;
-                recompute({ skipBuild: true });
-            });
-            return v;
-        }
-
-        function clearGroup(v) {
-            if (!v.ok) return;
-            while (v.group.children.length) {
-                const c = v.group.children[0];
-                v.group.remove(c);
-                c.geometry.dispose();
-            }
-        }
-
-        // Lägger till en del i 3D-scenen och håller all kaplistedata på den.
-        // part: { name, size:[x,y,z], pos:[x,y,z], mat, dim1, dim2, thick, material, grainLocked, edgeL }
-        function addPart(v, part, list) {
-            const selected = v.selection[part.name] !== undefined ? v.selection[part.name] : true;
-            const data = { ...part, selected };
-            list.push(data);
-            if (!v.ok) return;
-            const [sx, sy, sz] = part.size.map(n => Math.max(n, 0.5));
-            const mesh = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), selected ? MAT[part.mat] : MAT.desel);
-            mesh.position.set(...part.pos);
-            mesh.name = part.name;
-            mesh.userData = data;
-            data.mat = MAT[part.mat];
-            v.group.add(mesh);
-        }
-
-        function frameCamera(v, key, dist, elev) {
-            if (!v.ok || v.frameKey === key) return; // Behåll användarens vy om måtten inte ändrats
-            v.frameKey = key;
-            v.camera.position.set(dist * 0.35, elev, dist);
-            v.controls.target.set(0, 0, 0);
-            v.controls.update();
-        }
-
-        // ---------- Moduler ----------
-        function buildCabinet(v) {
-            const w = num('cabW', 600, { min: 50 }), h = num('cabH', 800, { min: 50 }), d = num('cabD', 400, { min: 50 });
-            const t = num('cabMatStom', 18, { min: 3, max: 50 });
-            const tBack = num('cabMatBack', 4, { min: 0, max: 25 });
-            const s = num('cabShelves', 2, { min: 0, max: 20, int: true });
-            const warnings = [];
-            if (w <= 2 * t + 20) warnings.push('Bredden är för liten i förhållande till stomtjockleken.');
-            if (h <= 2 * t + s * t + 20) warnings.push('Höjden räcker inte för topp, botten och alla hyllplan.');
-            if (d - tBack - 20 <= 20) warnings.push('Djupet är för litet för hyllplanen.');
-
-            clearGroup(v);
-            const parts = [];
-            const inner = Math.max(1, w - 2 * t);
-            const dc = Math.max(1, d - tBack);   // stommens djup; bakstycket läggs på baksidan
-            const zc = tBack / 2;
-            const matName = `${fmt(t)} mm Stomme`;
-            const common = { thick: t, material: matName, grainLocked: false };
-
-            addPart(v, { ...common, name: 'Vänster sida', size: [t, h, dc], pos: [-w / 2 + t / 2, 0, zc], mat: 'cabSide', dim1: h, dim2: dc, edgeL: h }, parts);
-            addPart(v, { ...common, name: 'Höger sida', size: [t, h, dc], pos: [w / 2 - t / 2, 0, zc], mat: 'cabSide', dim1: h, dim2: dc, edgeL: h }, parts);
-            addPart(v, { ...common, name: 'Topp', size: [inner, t, dc], pos: [0, h / 2 - t / 2, zc], mat: 'cabSide', dim1: inner, dim2: dc, edgeL: inner }, parts);
-            addPart(v, { ...common, name: 'Botten', size: [inner, t, dc], pos: [0, -h / 2 + t / 2, zc], mat: 'cabSide', dim1: inner, dim2: dc, edgeL: inner }, parts);
-
-            if (s > 0) {
-                const sd = Math.max(1, dc - 20);                    // 20 mm indrag från framkant
-                const gap = Math.max(0, (h - 2 * t - s * t) / (s + 1)); // lika fack, hyllans tjocklek inräknad
-                for (let i = 1; i <= s; i++) {
-                    const y = -h / 2 + t + i * gap + (i - 1) * t + t / 2;
-                    addPart(v, { ...common, name: `Hyllplan ${i}`, size: [inner, t, sd], pos: [0, y, zc - 10], mat: 'cabShelf', dim1: inner, dim2: sd, edgeL: inner }, parts);
-                }
-            }
-            if (tBack > 0) {
-                addPart(v, { name: 'Bakstycke', size: [w - 2, h - 2, tBack], pos: [0, 0, -d / 2 + tBack / 2], mat: 'cabBack', dim1: h - 2, dim2: w - 2, thick: tBack, material: `${fmt(tBack)} mm Bakstycke`, grainLocked: false, edgeL: 0 }, parts);
-            }
-            const m = Math.max(w, h, d);
-            frameCamera(v, `${w}|${h}|${d}`, m * 1.6, m * 0.3);
-
-            const qty = num('cabQty', 1, { min: 1, int: true });
-            const doEdge = $('cabEdgeBand').checked;
-            const shelves = parts.filter(p => p.selected && p.name.startsWith('Hyllplan')).length;
-            const hardware = [];
-            if (shelves) hardware.push({ name: 'Hyllbärare 5 mm', qty: shelves * 4 * qty, unit: 'st' });
-            if (tBack > 0 && parts.some(p => p.selected && p.name === 'Bakstycke')) {
-                hardware.push({ name: 'Skruv/spik för bakstycke (c/c 150 mm)', qty: Math.ceil(2 * (w + h) / 150) * qty, unit: 'st' });
-            }
-            return { title: 'Skåp & stomme', parts, qty, edgeT: doEdge ? appSettings.edgeThick : 0, doEdge, hardware, warnings };
-        }
-
-        function buildDrawer(v) {
-            const w = num('drwW', 564, { min: 50 }), h = num('drwH', 200, { min: 30 }), d = num('drwD', 400, { min: 50 });
-            const t = num('drwMatSide', 15, { min: 3, max: 40 });
-            const tBot = num('drwMatBot', 4, { min: 2, max: 25 });
-            const clr = num('drwClearance', 12.7, { min: 0, max: 50 });
-            const groove = num('drwGroove', 6, { min: 0, max: 20 });
-            const warnings = [];
-            const boxW = w - 2 * clr;
-            const inner = Math.max(1, boxW - 2 * t);
-            const innerD = Math.max(1, d - 2 * t);
-            if (boxW <= 2 * t + 20) warnings.push('Lådan blir för smal: kontrollera bredd, skenspel och sidtjocklek.');
-            if (groove >= t) warnings.push(`Spårdjupet (${fmt(groove)} mm) går igenom sidan (${fmt(t)} mm). Välj ett grundare spår.`);
-            else if (groove > t * 0.6) warnings.push('Spårdjupet är mer än 60 % av sidtjockleken. Det försvagar sidorna.');
-
-            clearGroup(v);
-            const parts = [];
-            const matName = `${fmt(t)} mm Sidor`;
-            const common = { thick: t, material: matName, grainLocked: true, edgeL: 0 };
-            addPart(v, { ...common, name: 'Sida vänster', size: [t, h, d], pos: [-boxW / 2 + t / 2, 0, 0], mat: 'drw', dim1: d, dim2: h }, parts);
-            addPart(v, { ...common, name: 'Sida höger', size: [t, h, d], pos: [boxW / 2 - t / 2, 0, 0], mat: 'drw', dim1: d, dim2: h }, parts);
-            addPart(v, { ...common, name: 'Framstycke', size: [inner, h, t], pos: [0, 0, d / 2 - t / 2], mat: 'drw', dim1: inner, dim2: h }, parts);
-            addPart(v, { ...common, name: 'Bakstycke', size: [inner, h, t], pos: [0, 0, -d / 2 + t / 2], mat: 'drw', dim1: inner, dim2: h }, parts);
-            // Botten i spår: innermått + spårdjup på båda sidor, minus 1 mm spel
-            const botW = inner + 2 * groove - 1, botD = innerD + 2 * groove - 1;
-            addPart(v, { name: 'Botten', size: [botW, tBot, botD], pos: [0, -h / 2 + 12 + tBot / 2, 0], mat: 'drwBot', dim1: botW, dim2: botD, thick: tBot, material: `${fmt(tBot)} mm Botten`, grainLocked: false, edgeL: 0 }, parts);
-
-            const m = Math.max(w, h, d);
-            frameCamera(v, `${w}|${h}|${d}`, m * 1.8, m * 0.5);
-
-            const qty = num('drwQty', 1, { min: 1, int: true });
-            const slide = Math.max(250, Math.floor(d / 50) * 50); // närmast kortare standardlängd
-            const hardware = [
-                { name: `Lådskenor ${slide} mm (för ${fmt(clr)} mm spel/sida)`, qty, unit: 'par' },
-                { name: 'Skruv för lådskenor', qty: 12 * qty, unit: 'st' }
-            ];
-            if (d < 250) warnings.push('Djupet är kortare än de flesta lådskenor (250 mm).');
-            return { title: 'Lådor', parts, qty, edgeT: 0, doEdge: false, hardware, warnings };
-        }
-
-        function buildShaker(v) {
-            const w = num('shkW', 400, { min: 100 }), h = num('shkH', 800, { min: 100 });
-            const f = num('shkFrame', 60, { min: 20 });
-            const tF = num('shkMatFrame', 21, { min: 10, max: 50 });
-            const tP = num('shkMatPanel', 6, { min: 3, max: 30 });
-            const tenon = num('shkTenon', 10, { min: 0, max: 30 });
-            const warnings = [];
-            if (w <= 2 * f + 20 || h <= 2 * f + 20) warnings.push('Ramen är för bred för dörrens mått.');
-            if (tP >= tF) warnings.push('Fyllningen är lika tjock som ramen. Välj tunnare fyllning eller fasad kant.');
-
-            clearGroup(v);
-            const parts = [];
-            const frameMat = `${fmt(tF)} mm Ramvirke`;
-            const common = { thick: tF, material: frameMat, grainLocked: true, edgeL: 0, mat: 'shkFrame' };
-            const railL = w - 2 * f + 2 * tenon;
-            addPart(v, { ...common, name: 'Stile vänster', size: [f, h, tF], pos: [-w / 2 + f / 2, 0, 0], dim1: h, dim2: f }, parts);
-            addPart(v, { ...common, name: 'Stile höger', size: [f, h, tF], pos: [w / 2 - f / 2, 0, 0], dim1: h, dim2: f }, parts);
-            addPart(v, { ...common, name: 'Rail topp', size: [w - 2 * f, f, tF], pos: [0, h / 2 - f / 2, 0], dim1: railL, dim2: f }, parts);
-            addPart(v, { ...common, name: 'Rail botten', size: [w - 2 * f, f, tF], pos: [0, -h / 2 + f / 2, 0], dim1: railL, dim2: f }, parts);
-            addPart(v, { name: 'Spegelfyllning', size: [w - 2 * f, h - 2 * f, tP], pos: [0, 0, 0], mat: 'shkPanel', dim1: h - 2 * f + 2 * tenon - 2, dim2: w - 2 * f + 2 * tenon - 2, thick: tP, material: `${fmt(tP)} mm Spegelpanel`, grainLocked: true, edgeL: 0 }, parts);
-
-            const m = Math.max(w, h);
-            frameCamera(v, `${w}|${h}`, m * 1.6, 0);
-
-            const qty = num('shkQty', 1, { min: 1, int: true });
-            const hinges = h <= 900 ? 2 : h <= 1600 ? 3 : h <= 2000 ? 4 : 5;
-            const hardware = [
-                { name: 'Blum CLIP top BLUMOTION 110° gångjärn', qty: hinges * qty, unit: 'st' },
-                { name: 'Monteringsplatta för gångjärn', qty: hinges * qty, unit: 'st' }
-            ];
-            return { title: 'Shaker-dörrar', parts, qty, edgeT: 0, doEdge: false, hardware, warnings };
-        }
-
-        const MODULES = {
-            modCabinet: { viewerId: 'container3D', build: buildCabinet, warnId: 'cabWarn', form: 'formCabinet' },
-            modDrawer: { viewerId: 'containerDrawer3D', build: buildDrawer, warnId: 'drwWarn', form: 'formDrawer' },
-            modShaker: { viewerId: 'containerShaker3D', build: buildShaker, warnId: 'shkWarn', form: 'formShaker' }
-        };
-        let activeTab = 'modCabinet';
-        let lastBuild = null;       // senaste modulresultat
-        let currentRows = [];       // grupperad kaplista (för export)
-        let currentHardware = [];
-
-        // ---------- Skivoptimering ----------
-        class Packer {
-            constructor(w, h, lockAll) { this.root = { x: 0, y: 0, w, h }; this.lockAll = lockAll; }
-            fit(blocks) {
-                for (const b of blocks) {
-                    b.fit = null; b.rotated = false;
-                    const n = this.find(this.root, b.w, b.h);
-                    if (n) { b.fit = this.split(n, b.w, b.h); continue; }
-                    if (!b.grainLocked && !this.lockAll) {
-                        const r = this.find(this.root, b.h, b.w);
-                        if (r) { b.rotated = true; b.fit = this.split(r, b.h, b.w); }
-                    }
-                }
-            }
-            find(node, w, h) {
-                if (node.used) return this.find(node.right, w, h) || this.find(node.down, w, h);
-                return (w <= node.w && h <= node.h) ? node : null;
-            }
-            split(node, w, h) {
-                node.used = true;
-                node.down = { x: node.x, y: node.y + h, w: node.w, h: node.h - h };
-                node.right = { x: node.x + w, y: node.y, w: node.w - w, h };
-                return { x: node.x, y: node.y };
-            }
-        }
-
-        const SORTS = [
-            (a, b) => b.w * b.h - a.w * a.h,
-            (a, b) => Math.max(b.w, b.h) - Math.max(a.w, a.h),
-            (a, b) => b.h - a.h || b.w - a.w,
-            (a, b) => b.w - a.w || b.h - a.h
-        ];
-
-        // Packar delar av ett material. Provar flera sorteringar och väljer den med minst antal skivor.
-        function packMaterial(rows) {
-            const { kerf, sheetL: SL, sheetW: SW, grainLock } = appSettings;
-            // Sågspalten läggs på varje del; skivan får lika mycket extra så att delar kan gå ända ut i kanten.
-            const PW = SL + kerf, PH = SW + kerf;
-            let best = null;
-            for (const cmp of SORTS) {
-                const oversize = [];
-                const blocks = [];
-                rows.forEach(r => {
-                    for (let k = 0; k < r.count; k++) {
-                        const b = { name: r.names[0], l: r.l, wd: r.w, w: r.l + kerf, h: r.w + kerf, grainLocked: r.grainLocked };
-                        const fits = (b.w <= PW && b.h <= PH) || (!b.grainLocked && !grainLock && b.h <= PW && b.w <= PH);
-                        (fits ? blocks : oversize).push(b);
-                    }
-                });
-                blocks.sort(cmp);
-                const sheets = [];
-                let rest = blocks;
-                while (rest.length) {
-                    const p = new Packer(PW, PH, grainLock);
-                    p.fit(rest);
-                    const placed = rest.filter(b => b.fit);
-                    if (!placed.length) break;
-                    sheets.push(placed.map(b => ({ ...b, fit: { ...b.fit } })));
-                    rest = rest.filter(b => !b.fit);
-                }
-                if (!best || sheets.length < best.sheets.length) best = { sheets, oversize };
-            }
-            return best;
-        }
-
-        function drawSheet(canvas, blocks) {
-            const { sheetL: SL, sheetW: SW } = appSettings;
-            const ctx = canvas.getContext('2d');
-            const scale = canvas.width / SL;
-            ctx.fillStyle = '#1e1e1e';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            blocks.forEach(b => {
-                const dW = (b.rotated ? b.wd : b.l) * scale, dH = (b.rotated ? b.l : b.wd) * scale;
-                const dX = b.fit.x * scale, dY = b.fit.y * scale;
-                const grad = ctx.createLinearGradient(dX, dY, dX + dW, dY + dH);
-                grad.addColorStop(0, '#f59e0b'); grad.addColorStop(1, '#d97706');
-                ctx.fillStyle = grad; ctx.fillRect(dX, dY, dW, dH);
-                ctx.strokeStyle = '#000'; ctx.lineWidth = 1; ctx.strokeRect(dX + 0.5, dY + 0.5, dW - 1, dH - 1);
-                if (dW > 60 && dH > 22) {
-                    ctx.fillStyle = '#000'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                    ctx.font = "bold 13px 'JetBrains Mono', monospace";
-                    const label = `${fmt(b.l)}×${fmt(b.wd)}`;
-                    const showName = dH > 44 && dW > 90;
-                    ctx.fillText(label, dX + dW / 2, dY + dH / 2 - (showName ? 8 : 0));
-                    if (showName) {
-                        ctx.font = "11px 'Inter', sans-serif"; ctx.fillStyle = 'rgba(0,0,0,0.7)';
-                        ctx.fillText(b.name.length > 18 ? b.name.slice(0, 17) + '…' : b.name, dX + dW / 2, dY + dH / 2 + 9);
-                    }
-                    if (b.rotated) { ctx.font = "bold 11px 'Inter', sans-serif"; ctx.textAlign = 'right'; ctx.fillText('↻', dX + dW - 5, dY + 10); }
-                }
-            });
-        }
-
-        // ---------- Resultat ----------
-        function renderResults(result) {
-            const { title, parts, qty, edgeT, doEdge, hardware, warnings } = result;
-            $('resModuleTitle').textContent = `PROJEKT / ${title.toUpperCase()}`;
-            $('sheetBadge').textContent = `${fmt(appSettings.sheetL)} × ${fmt(appSettings.sheetW)} mm`;
-
-            // Kantlist dras av på djupled (dim2) – framkanten löper längs dim1.
-            let edgeMeters = 0;
-            const selected = parts.filter(p => p.selected).map(p => {
-                let l = p.dim1, w = p.dim2;
-                if (doEdge && p.edgeL > 0) { w -= edgeT; edgeMeters += (p.edgeL / 1000) * qty; }
-                if (!p.grainLocked && !appSettings.grainLock && w > l) [l, w] = [w, l];
-                return { name: p.name, l: round1(l), w: round1(w), material: p.material, thick: p.thick, grainLocked: p.grainLocked, count: qty };
-            });
-
-            // Gruppera identiska mått per material
-            const rows = [];
-            selected.forEach(p => {
-                const ex = rows.find(r => r.material === p.material && r.l === p.l && r.w === p.w && r.grainLocked === p.grainLocked);
-                if (ex) { ex.count += p.count; if (!ex.names.includes(p.name)) ex.names.push(p.name); }
-                else rows.push({ ...p, names: [p.name] });
-            });
-            rows.sort((a, b) => b.thick - a.thick || b.l - a.l || b.w - a.w);
-            currentRows = rows;
-            currentHardware = hardware;
-
-            const byMat = {};
-            rows.forEach(r => { (byMat[r.material] = byMat[r.material] || []).push(r); });
-
-            $('statParts').textContent = rows.reduce((a, r) => a + r.count, 0);
-            $('statEdge').textContent = edgeMeters > 0 ? `${fmt(Math.ceil(edgeMeters * 1.1 * 10) / 10)} m` : '–';
-            $('statEdge').title = edgeMeters > 0 ? `${fmt(edgeMeters)} m netto + 10 % spill` : '';
-
-            // Kaplista
-            $('resList').innerHTML = rows.length ? Object.entries(byMat).map(([mat, items]) => `
-                <div class="glass-card p-4">
-                    <h4 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 border-b border-white/5 pb-2 flex justify-between items-center gap-2">
-                        <span class="text-white">${esc(mat)}</span>
-                        <span class="bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2.5 py-0.5 rounded-full whitespace-nowrap">${items.reduce((a, i) => a + i.count, 0)} delar</span>
-                    </h4>
-                    <ul class="space-y-3">${items.map(i => `
-                        <li class="flex justify-between items-center gap-3 text-sm">
-                            <span class="min-w-0"><span class="text-white font-mono font-medium whitespace-nowrap">${fmt(i.l)} × ${fmt(i.w)} mm</span>
-                            <span class="text-gray-500 font-sans ml-2 text-xs uppercase tracking-wider">${esc(i.names.join(', '))}</span>${i.grainLocked ? ' <span class="text-[10px] text-amber-400/80 font-sans" title="Ådring längs första måttet">⇄ ådring</span>' : ''}</span>
-                            <span class="bg-white/5 text-gray-300 border border-white/10 px-2 py-1 rounded text-xs font-bold whitespace-nowrap">${i.count} st</span>
-                        </li>`).join('')}
-                    </ul>
-                </div>`).join('') : '<p class="text-sm text-gray-500 px-2">Inga delar valda. Klicka på delarna i 3D-vyn för att ta med dem igen.</p>';
-
-            // Skivoptimering
-            const resOpt = $('resOpt');
-            resOpt.innerHTML = '';
-            let totalCost = 0, totalSheets = 0, usedArea = 0;
-            const allWarnings = [...warnings];
-            const cw = 1000, ch = Math.round(cw * appSettings.sheetW / appSettings.sheetL);
-
-            for (const [mat, items] of Object.entries(byMat)) {
-                const { sheets, oversize } = packMaterial(items);
-                const thin = items[0].thick < 9;
-                totalCost += sheets.length * (thin ? appSettings.priceThin : appSettings.priceMain);
-                totalSheets += sheets.length;
-                if (oversize.length) allWarnings.push(`${oversize.length} del(ar) i ${mat} är större än skivan och kom inte med i optimeringen: ${[...new Set(oversize.map(b => `${fmt(b.l)}×${fmt(b.wd)}`))].join(', ')} mm.`);
-
-                const wrap = document.createElement('div');
-                wrap.innerHTML = `<h4 class="text-sm font-bold text-gray-300 mb-3 flex items-center justify-between gap-2"><span>${esc(mat)}</span><span class="text-xs text-gray-500 font-mono">${sheets.length} ${sheets.length === 1 ? 'skiva' : 'skivor'}</span></h4>`;
-                sheets.forEach((blocks, idx) => {
-                    const area = blocks.reduce((a, b) => a + b.l * b.wd, 0);
-                    usedArea += area;
-                    const util = Math.round(area / (appSettings.sheetL * appSettings.sheetW) * 100);
-                    const card = document.createElement('div');
-                    card.className = 'glass-card mb-4 overflow-hidden p-1';
-                    card.innerHTML = `<div class="px-3 py-2 text-[10px] font-bold tracking-widest text-gray-500 uppercase flex flex-wrap justify-between items-center gap-2">
-                        <span>Skiva ${idx + 1} · ${blocks.length} delar</span>
-                        <span class="flex items-center gap-2">
-                            <span class="bg-black/30 px-2 py-0.5 rounded ${util >= 70 ? 'text-emerald-400' : util >= 40 ? 'text-yellow-400' : 'text-red-400'}">${util} % nyttjat</span>
-                            <span class="bg-black/30 px-2 py-0.5 rounded">Spalt ${fmt(appSettings.kerf)} mm</span>
-                            ${appSettings.grainLock ? '<span class="bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-0.5 rounded">Låst ådring</span>' : ''}
-                        </span></div>`;
-                    const cvs = document.createElement('canvas');
-                    cvs.width = cw; cvs.height = ch;
-                    cvs.setAttribute('role', 'img');
-                    cvs.setAttribute('aria-label', `Skärschema skiva ${idx + 1}, ${blocks.length} delar, ${util} procent nyttjat`);
-                    card.appendChild(cvs);
-                    wrap.appendChild(card);
-                    drawSheet(cvs, blocks);
-                });
-                resOpt.appendChild(wrap);
-            }
-            if (!rows.length) resOpt.innerHTML = '<p class="text-sm text-gray-500 px-2">Inget att optimera.</p>';
-
-            $('statCost').textContent = `~ ${fmtKr(totalCost)}`;
-            $('statSheets').textContent = totalSheets
-                ? `${totalSheets} ${totalSheets === 1 ? 'skiva' : 'skivor'} · ${Math.round(usedArea / (totalSheets * appSettings.sheetL * appSettings.sheetW) * 100)} % nyttjat`
-                : '';
-
-            const warnBox = $('resWarn');
-            warnBox.hidden = !allWarnings.length;
-            warnBox.innerHTML = allWarnings.map(w => `<div>⚠ ${esc(w)}</div>`).join('');
-
-            // Beslag
-            $('resHardwareSection').hidden = !hardware.length;
-            $('resHardwareList').innerHTML = hardware.map(hw => `
-                <tr class="hover:bg-white/5 transition-colors">
-                    <td class="px-5 py-3 font-medium text-gray-200">${esc(hw.name)}</td>
-                    <td class="px-5 py-3 text-center text-orange-400 font-bold font-mono">${hw.qty}</td>
-                    <td class="px-5 py-3 text-gray-500">${esc(hw.unit)}</td>
-                </tr>`).join('');
-        }
-
-        // ---------- Uppdateringsflöde ----------
-        const viewers = {};
-
-        function recompute({ skipBuild = false } = {}) {
-            const mod = MODULES[activeTab];
-            const v = viewers[mod.viewerId];
-            if (!skipBuild || !lastBuild || lastBuild.tab !== activeTab) {
-                lastBuild = { tab: activeTab, ...mod.build(v) };
-            } else {
-                // Endast markering ändrad: läs om urvalet från scenen utan att bygga om geometrin
-                lastBuild.parts.forEach(p => { if (v.selection[p.name] !== undefined) p.selected = v.selection[p.name]; });
-            }
-            const wb = $(mod.warnId);
-            wb.hidden = !lastBuild.warnings.length;
-            wb.textContent = lastBuild.warnings.join(' ');
-            renderResults(lastBuild);
-        }
-
-        let debounce;
-        const scheduleRecompute = () => { clearTimeout(debounce); debounce = setTimeout(() => recompute(), 120); };
-
-        Object.entries(MODULES).forEach(([tab, mod]) => {
-            const form = $(mod.form);
-            form.addEventListener('input', () => { if (tab === activeTab) scheduleRecompute(); });
-            form.addEventListener('change', () => { if (tab === activeTab) scheduleRecompute(); });
-            form.addEventListener('submit', e => {
-                e.preventDefault();
-                recompute();
-                $('resultSection').scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
-            });
-        });
-
-        function setTab(target) {
-            if (!MODULES[target]) return;
-            activeTab = target;
-            document.querySelectorAll('.tab-btn').forEach(b => {
-                const on = b.dataset.target === target;
-                b.classList.toggle('active', on);
-                b.setAttribute('aria-selected', on);
-            });
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.id === target));
-            const v = viewers[MODULES[target].viewerId];
-            if (v && v.ok) v.resize();
-            recompute();
-        }
-        document.querySelectorAll('.tab-btn').forEach(btn => btn.addEventListener('click', () => setTab(btn.dataset.target)));
-
-        // ---------- Export ----------
-        function buildCsv() {
-            const n = x => String(round1(x)).replace('.', ','); // svensk decimal för Excel
-            const q = s => `"${String(s).replace(/"/g, '""')}"`;
-            let csv = '﻿Antal;Längd (mm);Bredd (mm);Komponent;Material;Ådringslåst\n';
-            currentRows.forEach(r => { csv += `${r.count};${n(r.l)};${n(r.w)};${q(r.names.join(', '))};${q(r.material)};${r.grainLocked ? 'Ja' : 'Nej'}\n`; });
-            if (currentHardware.length) {
-                csv += '\nBESLAGSLISTA\nProdukt;Antal;Enhet\n';
-                currentHardware.forEach(h => { csv += `${q(h.name)};${h.qty};${q(h.unit)}\n`; });
-            }
-            return csv;
-        }
-
-        $('btnExportExcel').addEventListener('click', () => {
-            if (!currentRows.length) { showToast('Kaplistan är tom', true); return; }
-            download(`CutYard_Kaplista_${new Date().toISOString().slice(0, 10)}.csv`, buildCsv(), 'text/csv;charset=utf-8');
-            showToast('CSV-fil nedladdad');
-        });
-
-        $('btnCopyCsv').addEventListener('click', () => {
-            if (!currentRows.length) { showToast('Kaplistan är tom', true); return; }
-            const text = buildCsv().replace(/^﻿/, '').replace(/;/g, '\t'); // tabbar klistras in i kalkylark
-            const fallback = () => {
-                const ta = document.createElement('textarea');
-                ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
-                document.body.appendChild(ta); ta.select();
-                let ok = false;
-                try { ok = document.execCommand('copy'); } catch { /* ignoreras */ }
-                ta.remove();
-                showToast(ok ? 'Kaplistan kopierad' : 'Kunde inte kopiera. Använd Exportera CSV.', !ok);
-            };
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(text).then(() => showToast('Kaplistan kopierad'), fallback);
-            } else fallback();
-        });
-
-        // ---------- Projekt (.cutyard) ----------
-        $('btnSaveProject').addEventListener('click', () => {
-            const inputs = {};
-            document.querySelectorAll('.proj-input').forEach(el => { if (el.id) inputs[el.id] = el.type === 'checkbox' ? el.checked : el.value; });
-            const selection = {};
-            Object.values(MODULES).forEach(m => { selection[m.viewerId] = viewers[m.viewerId].selection; });
-            const data = { app: 'cutyard', version: 2, savedAt: new Date().toISOString(), activeTab, settings: appSettings, inputs, selection };
-            download(`projekt_${new Date().toISOString().slice(0, 10)}.cutyard`, JSON.stringify(data, null, 2), 'application/json');
-            showToast('Projekt sparat (.cutyard)');
-        });
-
-        $('btnLoadProject').addEventListener('click', () => $('fileUpload').click());
-
-        $('fileUpload').addEventListener('change', e => {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = ev => {
-                try {
-                    const data = JSON.parse(ev.target.result);
-                    if (!data || typeof data !== 'object' || (!data.inputs && !data.settings)) throw new Error('format');
-                    if (data.settings) { appSettings = sanitizeSettings({ ...appSettings, ...data.settings }); store.set('cutyardSettings', appSettings); }
-                    if (data.inputs && typeof data.inputs === 'object') {
-                        for (const [id, value] of Object.entries(data.inputs)) {
-                            const el = $(id);
-                            if (!el || !el.classList.contains('proj-input')) continue;
-                            if (el.type === 'checkbox') el.checked = !!value; else el.value = String(value ?? '');
-                        }
-                    }
-                    Object.values(viewers).forEach(v => { v.selection = {}; v.frameKey = ''; });
-                    if (data.selection && typeof data.selection === 'object') {
-                        for (const [vid, sel] of Object.entries(data.selection)) if (viewers[vid] && sel && typeof sel === 'object') viewers[vid].selection = { ...sel };
-                    }
-                    lastBuild = null;
-                    setTab(MODULES[data.activeTab] ? data.activeTab : activeTab);
-                    showToast('Projekt inläst');
-                } catch {
-                    showToast('Filen kunde inte läsas. Välj en giltig .cutyard-fil.', true);
-                } finally {
-                    $('fileUpload').value = ''; // gör det möjligt att läsa in samma fil igen
-                }
-            };
-            reader.onerror = () => { showToast('Filen kunde inte läsas.', true); $('fileUpload').value = ''; };
-            reader.readAsText(file);
-        });
-
-        // ---------- Start ----------
-        function init() {
-            $('year').textContent = new Date().getFullYear();
-            appSettings = sanitizeSettings(store.get('cutyardSettings'));
-            fillSettingsForm();
-            Object.values(MODULES).forEach(m => { viewers[m.viewerId] = makeViewer(m.viewerId); });
-
-            // Renderar bara den synliga vyn, och bara när fliken är synlig
-            const loop = () => {
-                requestAnimationFrame(loop);
-                if (document.hidden) return;
-                const v = viewers[MODULES[activeTab].viewerId];
-                if (!v || !v.ok) return;
-                v.controls.update();
-                v.renderer.render(v.scene, v.camera);
-            };
-            loop();
-
-            // Bygg alla scener en gång så att varje flik är redo, sluta på aktiv flik
-            Object.keys(MODULES).forEach(tab => { activeTab = tab; recompute(); });
-            setTab('modCabinet');
-            if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => recompute({ skipBuild: true }));
-        }
-
-        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
-        else init();
-    })();
-    </script>
+    <div id="printArea" aria-hidden="true"></div>
 </body>
 </html>

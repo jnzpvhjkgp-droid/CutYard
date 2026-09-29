@@ -1,0 +1,113 @@
+/* Källfil för Tailwind. Bygg med `npm run build:css` → assets/app.css */
+
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 300; font-display: swap; src: url('fonts/inter-300.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 400; font-display: swap; src: url('fonts/inter-400.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 500; font-display: swap; src: url('fonts/inter-500.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 600; font-display: swap; src: url('fonts/inter-600.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 700; font-display: swap; src: url('fonts/inter-700.woff2') format('woff2'); }
+@font-face { font-family: 'JetBrains Mono'; font-style: normal; font-weight: 400; font-display: swap; src: url('fonts/jetbrains-mono-400.woff2') format('woff2'); }
+@font-face { font-family: 'JetBrains Mono'; font-style: normal; font-weight: 700; font-display: swap; src: url('fonts/jetbrains-mono-700.woff2') format('woff2'); }
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+    color-scheme: dark;
+    --bg: #030712;
+    --fg: #E5E7EB;
+    --cad-grid: rgba(255, 255, 255, 0.03);
+    --cad-bg: #050505;
+    --accent: #3B82F6;
+}
+[hidden] { display: none !important; }
+
+body {
+    background-color: var(--bg);
+    background-image: radial-gradient(circle at 50% 0%, rgba(30, 58, 138, 0.15) 0%, transparent 60%),
+                      radial-gradient(circle at 80% 100%, rgba(139, 92, 246, 0.05) 0%, transparent 50%);
+    color: var(--fg);
+    overflow-x: hidden;
+    min-height: 100vh;
+}
+.num { font-family: theme('fontFamily.mono'); font-variant-numeric: tabular-nums; }
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+input[type=number] { -moz-appearance: textfield; }
+
+@layer components {
+    .fld-label { @apply block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5; }
+    .fld { @apply w-full min-w-0 bg-black/40 border border-gray-700/80 rounded-lg px-3 py-2 text-white transition-colors; font-family: theme('fontFamily.mono'); }
+    select.fld { font-family: theme('fontFamily.sans'); @apply text-sm pr-8; }
+    .fld::placeholder { @apply text-gray-600; }
+    .fld:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
+    .fld-text { font-family: theme('fontFamily.sans'); }
+    .panel { @apply bg-gray-900/40 backdrop-blur-md rounded-2xl shadow-2xl shadow-black/40 border border-white/5; }
+    .section-title { @apply text-[11px] font-bold text-gray-400 uppercase tracking-widest pt-2 border-t border-white/5; }
+    .btn { @apply inline-flex items-center justify-center gap-2 rounded-lg text-sm font-medium transition-all px-4 py-2 border; }
+    .btn-ghost { @apply btn text-gray-300 hover:text-white bg-white/5 hover:bg-white/10 border-white/10; }
+    .btn-primary { @apply btn text-white font-semibold border-blue-400/30 bg-gradient-to-br from-blue-500 to-blue-700 hover:from-blue-400 hover:to-blue-600 shadow-[0_0_20px_rgba(59,130,246,0.3)]; }
+    .btn-danger { @apply btn text-red-300 hover:text-white bg-red-500/10 hover:bg-red-500/30 border-red-500/30; }
+    .chip { @apply inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm whitespace-nowrap transition-colors; }
+    .chip-active { @apply border-blue-500/60 bg-blue-500/15 text-white; }
+    .chip-idle { @apply border-white/10 bg-white/5 text-gray-400 hover:text-white hover:bg-white/10; }
+    .glass-card { @apply rounded-xl border border-white/5 bg-gray-900/40 backdrop-blur; }
+    .warn-box { @apply text-xs text-amber-300 bg-amber-900/25 border border-amber-500/30 rounded-lg px-3 py-2.5 space-y-1; }
+    .check { @apply appearance-none w-5 h-5 rounded border border-gray-600 bg-black/50 checked:bg-blue-600 checked:border-blue-500 transition-all cursor-pointer shrink-0; }
+    .check-wrap { @apply relative flex items-center justify-center; }
+    .check-mark { @apply absolute w-3 h-3 text-white pointer-events-none opacity-0 transition-opacity; }
+    .check:checked + .check-mark { @apply opacity-100; }
+    .seg { @apply px-3 py-1.5 text-xs font-semibold rounded-md transition-colors text-gray-400 hover:text-white; }
+    .seg-on { @apply bg-white/10 text-white; }
+    .tbl th { @apply px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest text-left whitespace-nowrap; }
+    .tbl td { @apply px-4 py-2.5 border-t border-white/5; }
+}
+
+button:focus-visible, a:focus-visible, [tabindex]:focus-visible { outline: 2px solid #60A5FA; outline-offset: 2px; }
+
+.viewer {
+    background-color: var(--cad-bg);
+    background-image: linear-gradient(var(--cad-grid) 1px, transparent 1px), linear-gradient(90deg, var(--cad-grid) 1px, transparent 1px);
+    background-size: 20px 20px;
+    box-shadow: inset 0 0 50px rgba(0,0,0,0.9);
+}
+.viewer canvas { display: block; width: 100% !important; height: 100% !important; }
+.sheet-canvas { width: 100%; height: auto; display: block; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); }
+
+.toast { transition: transform .35s ease, opacity .35s ease; }
+.toast.is-hidden { transform: translateY(6rem); opacity: 0; pointer-events: none; }
+.fade-in { animation: fadeIn .35s ease; }
+@keyframes fadeIn { from { opacity: .4; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+/* ---------- Utskrift ---------- */
+#printArea { display: none; }
+@media print {
+    @page { size: A4; margin: 12mm; }
+    html, body { background: #fff !important; color: #000 !important; }
+    body > *:not(#printArea) { display: none !important; }
+    #printArea { display: block !important; font-family: theme('fontFamily.sans'); font-size: 10pt; color: #000; }
+    #printArea h1 { font-size: 16pt; font-weight: 700; margin: 0 0 2mm; }
+    #printArea h2 { font-size: 12pt; font-weight: 700; margin: 6mm 0 2mm; break-after: avoid; }
+    #printArea table { width: 100%; border-collapse: collapse; }
+    #printArea th, #printArea td { border: 0.3mm solid #999; padding: 1mm 1.5mm; text-align: left; font-size: 9pt; }
+    #printArea th { background: #eee; }
+    #printArea .p-num { font-family: theme('fontFamily.mono'); font-variant-numeric: tabular-nums; }
+    #printArea .p-sheet { break-inside: avoid; margin-bottom: 5mm; }
+    #printArea .p-sheet img { width: 100%; border: 0.3mm solid #000; }
+    #printArea .p-break { break-before: page; }
+    #printArea .p-labels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; }
+    #printArea .p-label { border: 0.2mm dashed #999; padding: 2.5mm; display: flex; gap: 2.5mm; align-items: center; height: 33mm; break-inside: avoid; overflow: hidden; }
+    #printArea .p-label svg { width: 22mm; height: 22mm; flex: none; }
+    #printArea .p-label .nr { font-size: 16pt; font-weight: 700; line-height: 1; }
+    #printArea .p-label .dim { font-family: theme('fontFamily.mono'); font-size: 10pt; font-weight: 700; }
+    #printArea .p-label .meta { font-size: 7.5pt; line-height: 1.25; }
+}
