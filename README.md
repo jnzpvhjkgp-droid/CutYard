@@ -7,6 +7,10 @@ Allt körs i webbläsaren och fungerar offline när sidan har laddats en gång.
 
 - **Egen kaplista** – skriv in fria delar med antal, mått, tjocklek, skivtyp, kantlist per kant och ådring per del, eller klistra in rader direkt från Excel, Numbers eller en CSV-fil.
 - **Verkstadsläge** – sågordning med ett snitt i taget, stora siffror och markering av snittet på skivan. Var man är sparas, så man kan fortsätta senare.
+- **Virke på längden** – shaker-ramar och rader i egen kaplista kan sågas ur brädor. Brädorna optimeras på längden med sågspalt och kapning i ändarna, med egen längd och meterpris per dimension.
+- **Skåptyper** – bänk-, vägg- och högskåp med standardmått, sockel, mellanväggar och garderobsstång. "Hela projektet" i 3D-vyn visar alla skåp tillsammans som en vägg.
+- **Hyllhål och spår** – hyllhålsrader enligt 32-mm-systemet och bakstycke i spår, med mått i Borrschemat och på utskriften.
+- **Export till DXF och SVG** – alla skärscheman i en fil i skala 1:1, för CNC och CAD.
 - **Skivtyp** – ett frivilligt namn (t.ex. "Björkplywood") skiljer skivor med samma tjocklek åt.
 - **Projekt med flera objekt** – skåp, fristående lådor och shaker-dörrar optimeras tillsammans på samma skivor.
 - **Skåp med fronter** – dörrar (släta eller shaker) med spel och gångjärnsborrschema, eller lådfronter med färdigräknade lådlådor.
@@ -43,5 +47,6 @@ checkas in så att sidan kan publiceras som statiska filer utan byggsteg. CI kon
 | `src/print.js` | Utskriftsvy med QR-etiketter. |
 | `src/listEditor.js` | Redigeraren för egen kaplista. |
 | `src/workshop.js` | Verkstadsläget. |
+| `src/export.js` | Export av skärscheman till DXF och SVG. |
 | `sw.js` | Service worker för offline. Höj `VERSION` när filer ändras. |
 | `tests/core.test.js` | Enhetstester, bl.a. att varje skärschema går att såga med giljotinsnitt. |

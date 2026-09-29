@@ -98,6 +98,12 @@ input[type=number] { -moz-appearance: textfield; }
     .nr { @apply inline-flex items-center justify-center rounded text-[11px] font-bold; min-width: 1.75rem; height: 1.35rem; background: var(--surface-2); color: var(--fg); border: 1px solid var(--line-strong); font-family: theme('fontFamily.mono'); }
 }
 
+/* Virke: en bräda som en stapel */
+.board-bar { position: relative; height: 34px; border-radius: 4px; background: #0e131b; border: 1px solid var(--line); overflow: hidden; }
+.board-cut { position: absolute; top: 0; bottom: 0; background: #22324a; border: 1px solid rgba(91,147,245,0.75); border-radius: 2px;
+    display: flex; align-items: center; justify-content: center; font-size: 11px; color: var(--fg); white-space: nowrap; overflow: hidden; font-variant-numeric: tabular-nums; }
+.board-trim { position: absolute; top: 0; bottom: 0; background: rgba(255,255,255,0.05); }
+
 /* Kantlistväljare: en liten rektangel där varje kant är en knapp */
 .edge-picker { display: grid; grid-template-columns: 7px 30px 7px; grid-template-rows: 7px 16px 7px; gap: 1px; }
 .edge-body { grid-area: 2 / 2; background: var(--surface-2); border-radius: 2px; }

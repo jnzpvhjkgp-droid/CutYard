@@ -34,6 +34,10 @@ function rowCard(r, i) {
                 <span class="check-wrap"><input type="checkbox" class="check" data-col="grain"${r.grain ? ' checked' : ''}><svg class="check-mark" fill="none" stroke="currentColor" stroke-width="3.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></span>
                 Ådring längs längden
             </label>
+            <label class="inline-flex items-center gap-2 text-[12px] muted cursor-pointer" title="Delen sågas ur en bräda med rätt tjocklek och bredd. Bara längden optimeras.">
+                <span class="check-wrap"><input type="checkbox" class="check" data-col="board"${r.board ? ' checked' : ''}><svg class="check-mark" fill="none" stroke="currentColor" stroke-width="3.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></span>
+                Virke
+            </label>
         </div>
     </div>`;
 }
@@ -57,7 +61,7 @@ export function renderListEditor(wrap, item, hooks) {
         const r = rowOf(el);
         if (!r) return;
         const col = el.dataset.col;
-        if (col === 'grain') r.grain = el.checked;
+        if (col === 'grain' || col === 'board') r[col] = el.checked;
         else if (col === 'name' || col === 'mn') r[col] = el.value;
         else {
             const v = parseFloat(String(el.value).replace(',', '.'));

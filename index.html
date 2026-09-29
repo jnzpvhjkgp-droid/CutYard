@@ -96,12 +96,18 @@
 
             <!-- 3D -->
             <section id="viewerPanel" class="card overflow-hidden min-w-0 lg:sticky lg:top-20" aria-label="3D-vy">
-                <div class="flex items-center justify-between gap-3 px-4 h-11 border-b" style="border-color: var(--line);">
-                    <span class="text-[12px] muted">Dra för att vrida, scrolla för att zooma. Klicka på en del för att ta bort den ur kaplistan.</span>
-                    <label class="flex items-center gap-2 text-[12px] muted cursor-pointer shrink-0">
-                        <span class="check-wrap"><input id="showFronts" type="checkbox" class="check" checked><svg class="check-mark" fill="none" stroke="currentColor" stroke-width="3.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></span title="Visa eller dölj dörrar och lådfronter så att du ser in i skåpet">
-                        Visa fronter
-                    </label>
+                <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-4 py-2.5 border-b" style="border-color: var(--line);">
+                    <span class="text-[12px] muted min-w-0">Dra för att vrida, scrolla för att zooma. Klicka på en del för att ta bort den ur kaplistan.</span>
+                    <div class="flex items-center gap-4 shrink-0">
+                        <label class="flex items-center gap-2 text-[12px] muted cursor-pointer" title="Visa alla objekt tillsammans: bänk- och högskåp i en rad, väggskåp ovanför">
+                            <span class="check-wrap"><input id="wallView" type="checkbox" class="check"><svg class="check-mark" fill="none" stroke="currentColor" stroke-width="3.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></span>
+                            Hela projektet
+                        </label>
+                        <label class="flex items-center gap-2 text-[12px] muted cursor-pointer" title="Visa eller dölj dörrar och lådfronter så att du ser in i skåpet">
+                            <span class="check-wrap"><input id="showFronts" type="checkbox" class="check" checked><svg class="check-mark" fill="none" stroke="currentColor" stroke-width="3.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></span>
+                            Fronter
+                        </label>
+                    </div>
                 </div>
                 <div id="viewer3D" class="viewer h-[320px] sm:h-[440px] lg:h-[520px] cursor-grab active:cursor-grabbing"></div>
             </section>
@@ -127,7 +133,7 @@
                 <div><dt class="text-[12px] muted">Delar att såga</dt><dd id="statParts" class="num text-xl mt-0.5">0</dd></div>
                 <div><dt class="text-[12px] muted">Skivor att köpa</dt><dd class="mt-0.5"><span id="statSheets" class="num text-xl">0</span> <span id="statUtil" class="text-[12px] muted"></span></dd></div>
                 <div><dt class="text-[12px] muted">Kantlist <span class="faint">inkl. 10 % marginal</span></dt><dd id="statEdge" class="num text-xl mt-0.5">–</dd></div>
-                <div><dt class="text-[12px] muted">Kostnad för skivor</dt><dd id="statCost" class="num text-xl mt-0.5">0 kr</dd></div>
+                <div><dt class="text-[12px] muted">Kostnad för material</dt><dd id="statCost" class="num text-xl mt-0.5">0 kr</dd></div>
             </dl>
 
             <div id="resWarn" class="note-warn mx-4 sm:mx-5 mt-4" hidden></div>
@@ -155,6 +161,12 @@
                         </span>
                     </div>
                     <div id="resOpt" class="space-y-8"></div>
+                    <div id="exportRow" class="mt-6 pt-4 border-t flex flex-wrap items-center gap-2 text-[12px] muted" style="border-color: var(--line);">
+                        <span class="mr-2">Exportera skärschemana:</span>
+                        <button id="btnExportDxf" type="button" class="btn-line !py-1" title="För CNC-maskiner och CAD-program. Ett lager per typ: SKIVA, DELAR, SPILL och TEXT.">DXF</button>
+                        <button id="btnExportSvg" type="button" class="btn-line !py-1" title="Vektorbild som kan öppnas i webbläsaren, Illustrator eller Inkscape">SVG</button>
+                        <span class="faint">Alla skivor i en fil, i skala 1:1 i millimeter.</span>
+                    </div>
                 </div>
 
                 <div data-panel="hardware" role="tabpanel" hidden>
@@ -182,12 +194,21 @@
                 </div>
 
                 <div data-panel="drill" role="tabpanel" hidden>
-                    <div id="drillEmpty" class="muted text-[13px]" hidden>Inga dörrar med gångjärn i det här urvalet. Borrschemat visas när ett skåp har dörrar eller en shaker-dörr räknar gångjärn.</div>
-                    <div id="drillBody">
+                    <div id="drillEmpty" class="muted text-[13px]" hidden>Inget att borra eller fräsa i det här urvalet. Här visas gångjärnshål, hyllhål och spår för bakstycken.</div>
+                    <div id="drillBody" class="mb-8">
+                        <h3 class="font-semibold mb-1">Gångjärn</h3>
                         <p class="text-[12px] muted mb-3 leading-relaxed">Varje gångjärn kräver ett runt hål på dörrens baksida, ett så kallat kopphål: Ø35 mm och 13 mm djupt, med centrum 22,5 mm in från dörrens kant på gångjärnssidan. Tabellen visar hur långt ned från dörrens överkant varje hål ska borras.</p>
                         <div class="overflow-x-auto"><table class="tbl">
                             <thead><tr><th>Hör till</th><th>Dörr</th><th class="!text-right">Antal</th><th>Höjd × bredd</th><th>Gångjärn på</th><th>Hål från överkant (mm)</th></tr></thead>
                             <tbody id="resDrillList"></tbody>
+                        </table></div>
+                    </div>
+                    <div id="procBody">
+                        <h3 class="font-semibold mb-1">Hyllhål och spår</h3>
+                        <p class="text-[12px] muted mb-3 leading-relaxed">Hyllhålen borras enligt 32-mm-systemet på insidan av sidorna och på båda sidor av mellanväggarna. Borra med en hålmall så att hålen hamnar på samma höjd på båda sidor. "Antal" är hur många ytor som ska bearbetas.</p>
+                        <div class="overflow-x-auto"><table class="tbl">
+                            <thead><tr><th>Hör till</th><th>Bearbetning</th><th>Delar</th><th class="!text-right">Antal</th><th>Så här</th></tr></thead>
+                            <tbody id="resProcList"></tbody>
                         </table></div>
                     </div>
                 </div>
@@ -213,6 +234,12 @@
                     <div><label class="lbl" for="setSheetW">Bredd</label><div class="fld-unit"><input type="number" id="setSheetW" min="300" class="fld"><span class="unit">mm</span></div></div>
                     <div><label class="lbl" for="setPrice">Pris</label><div class="fld-unit"><input type="number" id="setPrice" min="0" class="fld"><span class="unit">kr</span></div></div>
                     <p class="col-span-3 text-[12px] faint -mt-1">Standard för alla tjocklekar. Skivformat och pris kan ändras per tjocklek under Skärscheman, t.ex. 2800 × 2070 för en viss skiva.</p>
+                </fieldset>
+                <fieldset class="field-group grid-cols-2">
+                    <legend class="group-title mb-3">Virke</legend>
+                    <div><label class="lbl" for="setBoardL">Längd på brädorna</label><div class="fld-unit"><input type="number" id="setBoardL" min="300" class="fld"><span class="unit">mm</span></div></div>
+                    <div><label class="lbl" for="setBoardPrice">Pris per meter</label><div class="fld-unit"><input type="number" id="setBoardPrice" min="0" class="fld"><span class="unit">kr</span></div></div>
+                    <p class="col-span-2 text-[12px] faint -mt-1">För delar som sågas ur brädor, t.ex. shaker-ramar. Brädorna antas vara hyvlade till delens tjocklek och bredd, så bara längden optimeras. Kantputsen kapas i båda ändarna.</p>
                 </fieldset>
                 <fieldset class="field-group grid-cols-3">
                     <legend class="group-title mb-3">Sågning</legend>

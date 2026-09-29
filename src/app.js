@@ -1,7 +1,7 @@
 // CutYard – gränssnitt. All beräkning sker i core.js.
 import {
     fmt, fmtKr, uid, DEFAULT_SETTINGS, SHOPS, sanitizeSettings, shopUrl,
-    matKey, matLabel, parseMatKey, normName, parsePartsTable, sanitizeOffcuts, sheetFor, FRAME_PROFILES, PANEL_STYLES, RAISED_PANEL_NOTE, profileTools,
+    matKey, matLabel, parseMatKey, normName, parsePartsTable, CABINET_KINDS, boardKey, boardLabel, boardFor, sanitizeOffcuts, sheetFor, FRAME_PROFILES, PANEL_STYLES, RAISED_PANEL_NOTE, profileTools,
     SLIDES, slideById, ITEM_TYPES, DEFAULT_PARAMS, makeItem, sanitizeProject, exampleProject,
     buildItem, collect, optimize, buildCsv
 } from './core.js';
@@ -10,6 +10,7 @@ import { sheetCanvas } from './draw.js';
 import { profileSvg } from './profiles.js';
 import { renderListEditor, nextRow } from './listEditor.js';
 import { openWorkshop, initWorkshop } from './workshop.js';
+import { sheetsSvg, sheetsDxf } from './export.js';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -33,6 +34,7 @@ const state = {
     activeId: null,
     scope: 'project',
     tab: 'list',
+    wallView: false,
     last: null   // senaste beräkning { col, opt, items }
 };
 const activeItem = () => state.project.items.find(i => i.id === state.activeId) || state.project.items[0]; // undefined om projektet är tomt
@@ -71,6 +73,7 @@ function profilePreview(p) {
 }
 const group = (title, rows, o = {}) => ({ title, rows, ...o });
 const slideOptions = SLIDES.map(s => [s.id, s.name]);
+const STOCK_OPTIONS = [['sheet', 'Skiva'], ['board', 'Virke (brädor i rätt bredd)']];
 
 const isDrawers = p => p.fronts === 'drawers';
 const hasFronts = p => p.fronts !== 'none';
@@ -78,13 +81,21 @@ const isShakerFront = p => hasFronts(p) && p.frontStyle === 'shaker';
 
 const SCHEMA = {
     cabinet: [
-        group('Yttermått', [[n('w', 'Bredd', { min: 100 }), n('h', 'Höjd', { min: 100 }), n('d', 'Djup', { min: 100 })]],
-            { desc: 'Skåpets mått utvändigt, utan fronter.' }),
+        group('Yttermått', [
+            [sel('kind', 'Skåptyp', Object.entries(CABINET_KINDS).map(([k, v]) => [k, v.label]), { hint: 'Byter till typens standardmått. Går att ångra.' }),
+             n('plinthH', 'Sockel', { min: 0, max: 300, hint: '0 = ingen sockel' })],
+            [n('w', 'Bredd', { min: 100 }), n('h', 'Höjd', { min: 100 }), n('d', 'Djup', { min: 100 })]
+        ], { desc: 'Skåpets mått utvändigt, utan fronter och sockel. Sockeln läggs under skåpet och dras in 50 mm från framkanten.' }),
         group('Stomme', [
             [n('carcassT', 'Skivtjocklek', { min: 3, step: 0.5 }), n('backT', 'Bakstycke', { min: 0, step: 0.5, hint: '0 = inget' }),
-             n('shelves', 'Hyllplan', { min: 0, max: 20, int: true, unit: 'st', show: p => !isDrawers(p) })],
+             sel('backMount', 'Bakstycket', [['surface', 'Skruvas på'], ['groove', 'I spår']], { show: p => p.backT > 0, hint: 'Spår: 10 mm in, 8 mm djupt' })],
             [chk('edgeBand', 'Kantlist på framkanterna', { hint: 'Listens tjocklek dras av från delarnas mått.' })]
-        ], { desc: 'Sidor, topp och botten sågas ur samma skiva. Bakstycket är en tunnare skiva som sätts på baksidan.' }),
+        ], { desc: 'Sidor, topp och botten sågas ur samma skiva. Bakstycket är en tunnare skiva som antingen skruvas på baksidan eller sitter i ett spår.' }),
+        group('Inredning', [
+            [n('shelves', 'Hyllplan per fack', { min: 0, max: 20, int: true, unit: 'st' }), n('dividers', 'Mellanväggar', { min: 0, max: 4, int: true, unit: 'st', hint: 'Delar skåpet i fack' })],
+            [chk('shelfHoles', 'Borra hyllhål (32-mm-systemet)', { show: p => p.shelves > 0, hint: 'Hålraderna hamnar i Borrschemat.' })],
+            [chk('rail', 'Garderobsstång i varje fack', { show: p => p.kind === 'tall' })]
+        ], { show: p => !isDrawers(p), desc: 'Hyllplan och mellanväggar. Hyllplanen går att flytta om du borrar hyllhål.' }),
         group('Fronter', [
             [sel('fronts', 'Fronter', [['none', 'Inga fronter'], ['doors', 'Dörrar'], ['drawers', 'Lådor']]),
              sel('doorCount', 'Antal dörrar', [['auto', 'Auto'], ['1', '1 dörr'], ['2', '2 dörrar']], { show: p => p.fronts === 'doors', hint: 'Auto: 2 dörrar över 600 mm' }),
@@ -94,6 +105,7 @@ const SCHEMA = {
             [n('frame', 'Rambredd', { min: 20, show: isShakerFront, hint: 'Ramens synliga bredd' }),
              n('tenon', 'Tappdjup', { min: 0, show: isShakerFront, hint: 'Enligt din fräsats' }),
              n('panelT', 'Fyllning', { min: 2, step: 0.5, show: isShakerFront, hint: 'Fyllningens tjocklek' })],
+            [sel('frameStock', 'Ramdelarna sågas ur', STOCK_OPTIONS, { show: isShakerFront, hint: 'Virke optimeras på längden' })],
             [sel('profile', 'Ramprofil', profileOptions, { show: isShakerFront }), sel('panelStyle', 'Fyllningstyp', panelOptions, { show: isShakerFront })],
             [html(profilePreview, { show: isShakerFront })],
             [chk('frontBand', 'Kantlist runt fronterna', { show: p => hasFronts(p) && p.frontStyle === 'flat' })]
@@ -135,7 +147,8 @@ const SCHEMA = {
         ], { desc: 'Hur ramens innerkant och fyllningen ser ut, och vilka fräsar som behövs.' }),
         group('Ram och fyllning', [
             [n('frame', 'Rambredd', { min: 20, hint: 'Ramens synliga bredd' }), n('tenon', 'Tappdjup', { min: 0, hint: 'Enligt din fräsats' })],
-            [n('frameT', 'Ramtjocklek', { min: 5, step: 0.5 }), n('panelT', 'Fyllning', { min: 2, step: 0.5, hint: 'Fyllningens tjocklek' })]
+            [n('frameT', 'Ramtjocklek', { min: 5, step: 0.5 }), n('panelT', 'Fyllning', { min: 2, step: 0.5, hint: 'Fyllningens tjocklek' })],
+            [sel('frameStock', 'Ramdelarna sågas ur', STOCK_OPTIONS, { hint: 'Virke optimeras på längden' })]
         ], { desc: 'Ramen består av två stående delar (stiles) och två liggande (rails). Tappdjupet är hur långt de liggande delarna går in i de stående.' }),
         group('Gångjärn', [[chk('hinges', 'Räkna gångjärn och borrschema')]]),
         group('Skivtyp och ådring', [
@@ -287,7 +300,7 @@ function renderItemList() {
             <button type="button" role="tab" aria-selected="${on}" data-item="${esc(it.id)}" class="flex-1 min-w-0 flex items-center gap-2.5 pl-2.5 pr-1 py-2 text-left">
                 <span class="w-2 h-2 rounded-full shrink-0" style="background:${TYPE_COLOR[it.type]}"></span>
                 <span class="min-w-0"><span class="block truncate">${esc(it.name)}</span>
-                <span class="block text-[11px] faint">${TYPE_LABEL[it.type]}${it.qty > 1 ? ` · ${it.qty} st` : ''}</span></span>
+                <span class="block text-[11px] faint">${it.type === 'cabinet' ? CABINET_KINDS[it.params.kind]?.label || 'Skåp' : TYPE_LABEL[it.type]}${it.qty > 1 ? ` · ${it.qty} st` : ''}</span></span>
             </button>
             <button type="button" data-remove="${esc(it.id)}" class="rm px-2.5 self-stretch muted hover:text-[var(--danger)]" title="Ta bort ${esc(it.name)}" aria-label="Ta bort ${esc(it.name)}">✕</button>
         </li>`;
@@ -315,7 +328,7 @@ function selectItem(id) {
 
 function addItem(type) {
     const count = state.project.items.filter(i => i.type === type).length + 1;
-    const item = makeItem(type, `${ITEM_TYPES[type].label} ${count}`);
+    const item = makeItem(type, `${ITEM_TYPES[type].label} ${count}`, type === 'cabinet' ? CABINET_KINDS.base.preset : undefined);
     state.project.items.push(item);
     selectItem(item.id);
     $('itemName').focus();
@@ -331,7 +344,8 @@ function recompute() {
     const item = activeItem();
     if (item) {
         const built = buildItem(item, state.settings);
-        viewer.show(built.parts, item.excluded, `${item.id}|${item.params.w}|${item.params.h}|${item.params.d}`);
+        if (state.wallView) showWall();
+        else viewer.show(built.parts, item.excluded, `${item.id}|${item.params.w}|${item.params.h}|${item.params.d}`);
         renderItemStatus(item, built);
     }
     const items = !item ? [] : state.scope === 'item' ? [item] : state.project.items;
@@ -341,6 +355,44 @@ function recompute() {
     renderResults(col, opt);
     persist();
 }
+// Hela projektet i 3D: bänk- och högskåp på golvet i en rad, väggskåp ovanför med underkant
+// 1 450 mm över golvet, övriga objekt till höger. Bakkanterna ligger mot samma vägg.
+const WALL_BOTTOM = 1450;
+function showWall() {
+    const floor = [], wall = [], other = [];
+    for (const it of state.project.items) {
+        const built = buildItem(it, state.settings);
+        const n = Math.min(it.qty, 6);
+        for (let k = 0; k < n; k++) (it.type === 'cabinet' ? (it.params.kind === 'wall' ? wall : floor) : other).push({ it, parts: built.parts });
+    }
+    const parts = [], excluded = {}, tallRanges = [];
+    const place = (list, x0, lift, skip = []) => {
+        let x = x0;
+        for (const { it, parts: ps } of list) {
+            const box = { x0: Infinity, x1: -Infinity, y0: Infinity, z0: Infinity };
+            ps.forEach(p => { if (!p.geo) return; const [sx, sy, sz] = p.geo.size, [px, py, pz] = p.geo.pos;
+                box.x0 = Math.min(box.x0, px - sx / 2); box.x1 = Math.max(box.x1, px + sx / 2); box.y0 = Math.min(box.y0, py - sy / 2); box.z0 = Math.min(box.z0, pz - sz / 2); });
+            if (!Number.isFinite(box.x0)) continue;
+            // Väggskåp flyttas förbi högskåp så att de inte hamnar i varandra
+            for (const r of skip) if (x < r[1] && x + (box.x1 - box.x0) > r[0]) x = r[1];
+            if (it.params.kind === 'tall') tallRanges.push([x, x + box.x1 - box.x0]);
+            const dx = x - box.x0, dy = lift - box.y0, dz = -box.z0;
+            ps.forEach(p => {
+                if (!p.geo) return;
+                const key = `${it.id}::${p.key}`;
+                if (it.excluded[p.key]) excluded[key] = true;
+                parts.push({ key, geo: { ...p.geo, pos: [p.geo.pos[0] + dx, p.geo.pos[1] + dy, p.geo.pos[2] + dz] } });
+            });
+            x += box.x1 - box.x0 + (it.type === 'cabinet' ? 0 : 100);
+        }
+        return x;
+    };
+    const endFloor = place(floor, 0, 0);
+    place(wall, 0, WALL_BOTTOM, tallRanges);
+    place(other, Math.max(endFloor, 0) + (floor.length ? 400 : 0), 0);
+    viewer.show(parts, excluded, `wall|${state.project.items.map(i => `${i.id}:${i.qty}:${i.params.w}:${i.params.h}`).join(',')}`);
+}
+
 let timer;
 const scheduleRecompute = () => { clearTimeout(timer); timer = setTimeout(recompute, 120); };
 
@@ -364,23 +416,27 @@ function renderResults(col, opt) {
     $('statParts').textContent = col.partCount;
     $('statEdge').textContent = col.edgeMeters > 0 ? `${fmt(Math.ceil(col.edgeMeters * 1.1 * 10) / 10)} m` : '–';
     $('statSheets').textContent = opt.sheets;
-    $('statUtil').textContent = opt.sheets ? `${Math.round(opt.utilization * 100)} % av ytan används` : '';
+    $('statUtil').textContent = [opt.sheets ? `${Math.round(opt.utilization * 100)} % av ytan används` : '',
+        opt.boards ? `+ ${opt.boards} ${opt.boards === 1 ? 'bräda' : 'brädor'} virke (${fmt(opt.boardMeters)} m)` : ''].filter(Boolean).join(' · ');
     $('statCost').textContent = fmtKr(opt.totalCost);
 
     const warnings = [...col.warnings];
     opt.materials.forEach(r => {
         if (r.oversize.length) warnings.push(`${r.oversize.length} del(ar) i ${matLabel(r.sheet.t, r.sheet.name)} är större än skivan: ${[...new Set(r.oversize.map(p => `#${p.nr} ${fmt(p.l)}×${fmt(p.w)}`))].join(', ')} mm.`);
     });
+    opt.linear.forEach(r => {
+        if (r.oversize.length) warnings.push(`${r.oversize.length} del(ar) i virket ${boardLabel(r.stock.t, r.stock.w, r.stock.name)} är längre än brädan (${fmt(r.stock.L)} mm minus kapning i ändarna): ${[...new Set(r.oversize.map(p => `#${p.nr} ${fmt(p.l)}`))].join(', ')} mm. Ange en längre bräda under Skärscheman.`);
+    });
     $('resWarn').hidden = !warnings.length;
     $('resWarn').innerHTML = warnings.map(w => `<div>${esc(w)}</div>`).join('');
 
     // Kaplista: en tabell, grupperad per tjocklek
     const byT = new Map();
-    col.rows.forEach(r => { const k = matKey(r.t, r.mn); if (!byT.has(k)) byT.set(k, []); byT.get(k).push(r); });
+    col.rows.forEach(r => { const k = r.board ? `b|${boardKey(r.t, r.w, r.mn)}` : matKey(r.t, r.mn); if (!byT.has(k)) byT.set(k, []); byT.get(k).push(r); });
     $('resList').innerHTML = col.rows.length ? `<table class="tbl">
         <thead><tr><th>Nr</th><th class="!text-right">Antal</th><th class="!text-right">Längd</th><th class="!text-right">Bredd</th><th>Del</th>${showItems ? '<th>Hör till</th>' : ''}</tr></thead>
         <tbody>${[...byT.values()].map(rows => `
-            <tr><td colspan="${showItems ? 6 : 5}" class="!pt-5 !pb-2"><span class="font-semibold">${esc(matLabel(rows[0].t, rows[0].mn))}</span> <span class="faint text-[12px] ml-2 num">${rows.reduce((a, r) => a + r.count, 0)} delar</span></td></tr>
+            <tr><td colspan="${showItems ? 6 : 5}" class="!pt-5 !pb-2"><span class="font-semibold">${rows[0].board ? `Virke ${esc(boardLabel(rows[0].t, rows[0].w, rows[0].mn))}` : esc(matLabel(rows[0].t, rows[0].mn))}</span> <span class="faint text-[12px] ml-2 num">${rows.reduce((a, r) => a + r.count, 0)} delar</span></td></tr>
             ${rows.map(r => `<tr>
                 <td><span class="nr">${r.nr}</span></td>
                 <td class="num text-right">${r.count}</td>
@@ -431,7 +487,9 @@ function renderResults(col, opt) {
         });
         resOpt.appendChild(sec);
     });
-    if (!opt.materials.length) resOpt.innerHTML = '<p class="muted">Inget att optimera.</p>';
+    opt.linear.forEach(r => resOpt.appendChild(boardSection(r)));
+    if (!opt.materials.length && !opt.linear.length) resOpt.innerHTML = '<p class="muted">Inget att optimera.</p>';
+    $('exportRow').hidden = !opt.materials.length;
     $('offcutCount').textContent = state.offcuts.length ? `${state.offcuts.length} bitar i lager${opt.offcutsUsed.length ? `, varav ${opt.offcutsUsed.length} används här` : ''}` : '';
     const saveBtn = $('btnSaveOffcuts');
     saveBtn.hidden = !opt.newOffcuts.length && !opt.offcutsUsed.length;
@@ -450,19 +508,57 @@ function renderResults(col, opt) {
             <td class="text-right text-[12px]">${priceLink(t.query)}</td></tr>`).join('');
     $('shopNote').textContent = shopUrl(state.settings, 'x') ? `"Sök pris" söker hos ${SHOPS[state.settings.shop].name}. Du kan byta under Inställningar.` : 'Ange en länkmall under Inställningar för att visa prislänkar.';
 
-    // Borrschema
-    $('drillEmpty').hidden = !!col.drillings.length;
+    // Borrschema: gångjärn, hyllhål och spår
+    $('drillEmpty').hidden = !!(col.drillings.length || col.processing.length);
     $('drillBody').hidden = !col.drillings.length;
+    $('procBody').hidden = !col.processing.length;
+    $('resProcList').innerHTML = col.processing.map(pr => {
+        if (pr.kind === 'groove') {
+            return `<tr><td>${esc(pr.item)}</td><td>Spår för bakstycke</td><td class="muted">${esc(pr.part)}</td><td class="num text-right">${pr.faces * pr.count}</td>
+                <td class="leading-relaxed">${fmt(pr.width)} mm brett och ${fmt(pr.depth)} mm djupt, ${fmt(pr.inset)} mm in från bakkanten, på insidan av delen.</td></tr>`;
+        }
+        const h = pr.holes;
+        const pos = h.length > 8 ? `${fmt(h[0])}, ${fmt(h[1])}, ${fmt(h[2])} … ${fmt(h[h.length - 1])} (${h.length} hål per rad, var ${pr.pitch}:e mm)` : h.map(fmt).join(' · ');
+        return `<tr><td>${esc(pr.item)}</td><td>Hyllhål</td><td class="muted">${esc(pr.part)}</td><td class="num text-right">${pr.faces * pr.count}</td>
+            <td class="leading-relaxed">Två rader Ø${pr.dia} × ${pr.depth} mm: ${pr.front} mm från framkanten och ${fmt(pr.rear)} mm från bakkanten. Från delens underkant: <span class="num">${pos}</span>.</td></tr>`;
+    }).join('');
     $('resDrillList').innerHTML = col.drillings.map(d => `<tr><td>${esc(d.item)}</td><td class="muted">${esc(d.door)}</td><td class="num text-right">${d.count}</td>
         <td class="num whitespace-nowrap">${fmt(d.h)} × ${fmt(d.w)}</td><td class="muted">${esc(d.side)}</td><td class="num whitespace-nowrap">${d.holes.map(fmt).join(' · ')}</td></tr>`).join('');
 
     // Antal i flikarna
-    const counts = { list: col.rows.length, sheets: opt.sheets + opt.offcutsUsed.length, hardware: hwCount + toolCount, drill: col.drillings.length };
+    const counts = { list: col.rows.length, sheets: opt.sheets + opt.offcutsUsed.length, hardware: hwCount + toolCount, drill: col.drillings.length + col.processing.length };
     document.querySelectorAll('[data-tab]').forEach(t => {
         const base = t.dataset.label || (t.dataset.label = t.textContent.trim());
         const c = counts[t.dataset.tab];
         t.innerHTML = `${esc(base)}${c ? ` <span class="faint num text-[12px] ml-0.5">${c}</span>` : ''}`;
     });
+}
+
+// Virke: varje bräda ritas som en stapel med delarna i den ordning de kapas
+function boardSection(r) {
+    const { stock } = r;
+    const label = boardLabel(stock.t, stock.w, stock.name);
+    const inp = (field, unit, w, def, min, aria) => `<span class="fld-unit ${w}"><input type="number" min="${min}" class="fld !py-1" data-board="${esc(stock.key)}" data-field="${field}"
+        value="${stock.custom[field] ?? ''}" placeholder="${def}" aria-label="${aria} för ${esc(label)}"><span class="unit">${unit}</span></span>`;
+    const pct = v => `${(v / stock.L) * 100}%`;
+    const sec = document.createElement('section');
+    sec.innerHTML = `<div class="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
+            <h3 class="font-semibold">Virke ${esc(label)}</h3>
+            <span class="text-[12px] muted">${r.count} ${r.count === 1 ? 'bräda' : 'brädor'}</span>
+            <div class="ml-auto flex flex-wrap items-center gap-2 text-[12px] muted">
+                <span>Brädans längd</span>${inp('L', 'mm', 'w-28', state.settings.boardL, 300, 'Brädans längd')}
+                <span class="ml-2">Pris per meter</span>${inp('price', 'kr', 'w-24', state.settings.boardPrice, 0, 'Pris per meter')}
+            </div>
+            <span class="num text-[13px] w-20 text-right">${fmtKr(r.cost)}</span>
+        </div>
+        <div class="space-y-3">${r.bars.map((b, i) => `<figure>
+            <div class="board-bar" role="img" aria-label="Bräda ${i + 1}: delar ${b.cuts.map(c => c.nr).join(', ')}">
+                ${b.trim ? `<span class="board-trim" style="left:0;width:${pct(b.trim)}"></span>` : ''}
+                ${b.cuts.map(c => `<span class="board-cut" style="left:${pct(c.x)};width:${pct(c.l)}" title="#${c.nr} ${esc(c.name)}, ${fmt(c.l)} mm"><b>${c.nr}</b><span class="hidden sm:inline faint">&nbsp;·&nbsp;${fmt(c.l)}</span></span>`).join('')}
+            </div>
+            <figcaption class="mt-1 flex justify-between text-[12px] muted"><span>Bräda ${i + 1} · ${b.cuts.length} delar</span><span>Rest ${fmt(b.left)} mm</span></figcaption>
+        </figure>`).join('')}</div>`;
+    return sec;
 }
 
 function setTab(tab) {
@@ -570,7 +666,8 @@ async function copyText(text, okMsg) {
 }
 
 const today = () => new Date().toISOString().slice(0, 10);
-const safeName = s => s.replace(/[^\p{L}\p{N}_-]+/gu, '_').replace(/^_+|_+$/g, '') || 'projekt';
+// Filnamn med bara a–z, siffror, _ och -: äldre CNC-program och vissa webbläsare tappar annars namnet
+const safeName = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '') || 'projekt';
 
 // ---------------------------------------------------------------------------
 // Persistens och projektfiler
@@ -625,7 +722,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') MODALS.forEa
 MODALS.forEach(id => $(id).addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(id); }));
 
 // Inställningar
-const SETTING_FIELDS = { setSheetL: 'sheetL', setSheetW: 'sheetW', setPrice: 'price', setKerf: 'kerf', setTrim: 'trim', setEdgeThick: 'edgeThick', setReveal: 'reveal', setFrontGap: 'frontGap', setMinOffcutL: 'minOffcutL', setMinOffcutW: 'minOffcutW' };
+const SETTING_FIELDS = { setSheetL: 'sheetL', setSheetW: 'sheetW', setPrice: 'price', setBoardL: 'boardL', setBoardPrice: 'boardPrice', setKerf: 'kerf', setTrim: 'trim', setEdgeThick: 'edgeThick', setReveal: 'reveal', setFrontGap: 'frontGap', setMinOffcutL: 'minOffcutL', setMinOffcutW: 'minOffcutW' };
 function fillSettings() {
     for (const [id, k] of Object.entries(SETTING_FIELDS)) $(id).value = state.settings[k];
     $('setGrainLock').checked = state.settings.grainLock;
@@ -644,6 +741,20 @@ $('btnSaveSettings').addEventListener('click', () => {
     closeModal('modalSettings');
     recompute();
     toast('Inställningar sparade');
+});
+
+// Längd och pris per virkesdimension
+$('resOpt').addEventListener('change', e => {
+    const { board: key, field } = e.target.dataset;
+    if (key == null || !field) return;
+    const raw = e.target.value.trim().replace(',', '.');
+    const boards = structuredClone(state.settings.boards);
+    const entry = boards[key] || {};
+    if (raw === '') delete entry[field]; else entry[field] = +raw;
+    boards[key] = entry;
+    state.settings = sanitizeSettings({ ...state.settings, boards });
+    if (raw !== '' && state.settings.boards[key]?.[field] !== +raw) toast(field === 'price' ? 'Priset kan inte vara negativt.' : 'Brädan måste vara minst 300 mm.', true);
+    recompute();
 });
 
 // Skivformat och pris per tjocklek (direkt i skärschemafliken). Tomt fält = standard från Inställningar.
@@ -799,13 +910,21 @@ $('resOpt').addEventListener('click', e => {
 // ---------------------------------------------------------------------------
 $('itemForm').addEventListener('input', e => {
     const fe = fieldEls.find(f => f.input === e.target);
-    if (!fe) return;
+    if (!fe || fe.field.key === 'kind') return; // hanteras i change nedan
     readField(fe);
     updateVisibility();
     scheduleRecompute();
 });
 $('itemForm').addEventListener('change', e => {
     const fe = fieldEls.find(f => f.input === e.target);
+    if (fe?.field.key === 'kind') {
+        const item = activeItem(), kind = e.target.value;
+        withUndo(`Standardmått för ${CABINET_KINDS[kind].label.toLowerCase()}`, () => {
+            Object.assign(item.params, { kind, ...CABINET_KINDS[kind].preset });
+            renderItemList(); renderForm(); recompute();
+        });
+        return;
+    }
     if (fe) { readField(fe); updateVisibility(); recompute(); }
 });
 $('itemForm').addEventListener('submit', e => e.preventDefault());
@@ -835,6 +954,7 @@ $('btnRestoreParts').addEventListener('click', () => {
     withUndo('Alla delar är med i kaplistan igen', () => { item.excluded = {}; recompute(); });
 });
 $('showFronts').addEventListener('change', e => viewer.setShowFronts(e.target.checked));
+$('wallView').addEventListener('change', e => { state.wallView = e.target.checked; viewer.frameKey = ''; recompute(); });
 
 document.querySelectorAll('[data-scope]').forEach(b => b.addEventListener('click', () => {
     state.scope = b.dataset.scope;
@@ -887,6 +1007,16 @@ $('btnBuyAll').addEventListener('click', () => {
     copyText(`Inköpslista – ${state.project.name}\n\n${lines.join('\n')}\n`, 'Inköpslistan kopierad');
 });
 
+// Skärscheman som SVG och DXF
+$('btnExportSvg').addEventListener('click', async () => {
+    if (!state.last?.opt.materials.length) { toast('Det finns inga skärscheman att exportera.', true); return; }
+    if (await download(`${safeName(state.project.name)}_skarscheman_${today()}.svg`, sheetsSvg(state.last.opt, state.project.name), 'image/svg+xml')) toast('SVG-filen sparad');
+});
+$('btnExportDxf').addEventListener('click', async () => {
+    if (!state.last?.opt.materials.length) { toast('Det finns inga skärscheman att exportera.', true); return; }
+    if (await download(`${safeName(state.project.name)}_skarscheman_${today()}.dxf`, sheetsDxf(state.last.opt), 'application/dxf')) toast('DXF-filen sparad');
+});
+
 // Utskrift (laddar QR-biblioteket först när det behövs)
 $('btnPrint').addEventListener('click', async () => {
     if (!state.last?.col.rows.length) { toast('Kaplistan är tom', true); return; }
@@ -925,6 +1055,14 @@ function init() {
     state.activeId = store.get(KEYS.active);
     $('projectName').value = state.project.name;
     viewer = new Viewer($('viewer3D'), key => {
+        if (key.includes('::')) { // klick i väggvyn: nyckeln är objekt-id::del
+            const [id, partKey] = key.split('::');
+            const it = state.project.items.find(i => i.id === id);
+            if (!it) return;
+            if (it.excluded[partKey]) delete it.excluded[partKey]; else it.excluded[partKey] = true;
+            recompute();
+            return;
+        }
         const item = activeItem();
         if (item.excluded[key]) delete item.excluded[key]; else item.excluded[key] = true;
         recompute();

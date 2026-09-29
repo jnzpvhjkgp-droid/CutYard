@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
     DEFAULT_SETTINGS, DEFAULT_PARAMS, sanitizeSettings, sanitizeProject, sanitizeParams, sanitizeOffcuts, sheetFor,
     buildCabinet, buildDrawer, buildShaker, drawerBox, slideById, pickSlideLength,
-    hingeCount, hingePositions, collect, optimize, optimizeSheets, makeItem, makeListRow, buildList, parsePartsTable, cutSequence, matKey, matLabel, buildCsv, shopUrl, exampleProject
+    hingeCount, hingePositions, collect, optimize, optimizeSheets, makeItem, makeListRow, buildList, parsePartsTable, cutSequence, matKey, matLabel, optimizeBoards, boardFor, shelfHolePositions, CABINET_KINDS, buildCsv, shopUrl, exampleProject
 } from '../src/core.js';
 
 const S = { ...DEFAULT_SETTINGS };
@@ -367,4 +367,70 @@ test('sågordning: varje del blir klar exakt en gång och får rätt mått', () 
         }
         assert.ok(steps.filter(x => x.kind === 'cut').every(c => c.dist > 0 && c.len > 0));
     }
+});
+
+// --- Steg 2: virke, skåptyper, hyllhål, spår ---
+test('virke: shaker-ramar kan sågas ur brädor och optimeras på längden', () => {
+    const col = collect([makeItem('shaker', 'D', { frameStock: 'board' })], S);
+    const boards = col.rows.filter(r => r.board);
+    assert.equal(boards.length, 2);                       // stiles 800 och rails 300, båda 19 × 60
+    assert.ok(boards.every(r => r.t === 19 && r.w === 60 && !r.lock));
+    const res = optimize(col.rows, S);
+    assert.equal(res.linear.length, 1);
+    assert.equal(res.boards, 1);                          // 2×800 + 2×300 + snitt ryms på 2400
+    assert.equal(res.materials.length, 1);                // fyllningen på skiva
+    assert.ok(res.totalCost > res.materials[0].cost);
+});
+
+test('virke: delar som inte ryms på brädan och korrekt sågspalt', () => {
+    const s2 = sanitizeSettings({ boardL: 1000, trim: 0, kerf: 3 });
+    const rows = [{ nr: 1, t: 20, w: 50, mn: '', l: 497, count: 2, names: ['A'], board: true }, { nr: 2, t: 20, w: 50, mn: '', l: 1200, count: 1, names: ['B'], board: true }];
+    const r = optimizeBoards(rows, boardFor(s2, 20, 50), s2);
+    assert.equal(r.count, 1);                             // 497 + 3 + 497 = 997 ≤ 1000
+    assert.equal(r.oversize.length, 1);
+    assert.deepEqual(r.bars[0].cuts.map(c => c.x), [0, 500]);
+    const r2 = optimizeBoards([{ ...rows[0], l: 499 }], boardFor(s2, 20, 50), s2);
+    assert.equal(r2.count, 2);                            // 499 + 3 + 499 = 1001 > 1000
+    const r3 = optimizeBoards([{ ...rows[0], l: 500, count: 1 }, { ...rows[0], l: 497, count: 1 }], boardFor(s2, 20, 50), s2);
+    assert.equal(r3.count, 1);                            // 500 + 3 + 497 = 1000, sista delen går ända ut
+});
+
+test('egen kaplista: rad markerad som virke', () => {
+    const col = collect([makeItem('list', 'L', { rows: [makeListRow({ l: 300, w: 900, t: 22, board: true })] })], S);
+    assert.deepEqual([col.rows[0].board, col.rows[0].l, col.rows[0].w], [true, 300, 900]); // vrids inte
+});
+
+test('skåptyper, sockel, mellanväggar och garderobsstång', () => {
+    assert.equal(CABINET_KINDS.tall.preset.h, 2100);
+    const r = buildCabinet({ ...DEFAULT_PARAMS.cabinet, kind: 'tall', h: 2100, fronts: 'doors', shelves: 3, dividers: 1, plinthH: 100, rail: true }, S);
+    assert.equal(r.parts.filter(p => p.key.startsWith('shelf')).length, 6);
+    assert.ok(r.parts.some(p => p.key === 'div1'));
+    assert.equal(r.parts.filter(p => p.key.startsWith('plinth')).length, 4);
+    assert.equal(r.hardware.find(h => h.key === 'rail').qty, 2);
+    const withDrawers = buildCabinet({ ...DEFAULT_PARAMS.cabinet, dividers: 2 }, S);
+    assert.ok(!withDrawers.parts.some(p => p.key.startsWith('div')));
+});
+
+test('hyllhål enligt 32-mm-systemet', () => {
+    const holes = shelfHolePositions(720, 16);
+    assert.ok(holes.length > 5);
+    assert.ok(holes.every((h, i) => i === 0 || Math.abs(h - holes[i - 1] - 32) < 1e-9));
+    assert.ok(Math.abs(holes[0] + holes[holes.length - 1] - 720) < 0.2);      // symmetriskt
+    const col = collect([makeItem('cabinet', 'A', { fronts: 'doors', shelves: 2 })], S);
+    assert.equal(col.processing.filter(p => p.kind === 'shelf').length, 1);
+});
+
+test('bakstycke i spår ger större bakstycke, fullt stomdjup och spår i bearbetningslistan', () => {
+    const p = { ...DEFAULT_PARAMS.cabinet, fronts: 'none', backMount: 'groove' };
+    const r = buildCabinet(p, S);
+    const back = r.parts.find(x => x.key === 'back');
+    assert.deepEqual([back.l, back.w], [720 - 32 + 16 - 1, 600 - 32 + 16 - 1]);
+    assert.equal(r.parts.find(x => x.key === 'sideL').w, 560);
+    assert.ok(r.processing.some(x => x.kind === 'groove'));
+    assert.ok(!r.hardware.some(h => h.key === 'backscrew'));
+});
+
+test('äldre skåp utan typ: grunda blir väggskåp', () => {
+    const pr = sanitizeProject({ items: [{ type: 'cabinet', params: { d: 350 } }, { type: 'cabinet', params: { d: 560 } }, { type: 'cabinet', params: {} }] });
+    assert.deepEqual(pr.items.map(i => i.params.kind), ['wall', 'base', 'base']);
 });

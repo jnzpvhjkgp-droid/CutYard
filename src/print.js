@@ -1,6 +1,6 @@
 // Bygger en utskriftsvänlig version: kaplista, beslag, skärscheman, borrschema och etiketter med QR-kod.
 import qrcode from '../vendor/qrcode.mjs';
-import { fmt, fmtKr, matLabel, labelText } from './core.js';
+import { fmt, fmtKr, matLabel, boardLabel, labelText } from './core.js';
 import { sheetCanvas } from './draw.js';
 
 // Å, Ä och Ö ska kodas som UTF-8 i QR-koden
@@ -18,10 +18,10 @@ function qrSvg(text) {
 export function buildPrint(el, { projectName, scopeLabel, col, opt, withLabels }) {
     const date = new Date().toLocaleDateString('sv-SE');
     const h = [];
-    h.push(`<h1>${esc(projectName)}</h1><div>${esc(scopeLabel)} · ${date} · ${col.partCount} delar · ${opt.sheets} skivor · ${fmtKr(opt.totalCost)}${col.edgeMeters > 0 ? ` · kantlist ${fmt(col.edgeMeters * 1.1)} m` : ''}</div>`);
+    h.push(`<h1>${esc(projectName)}</h1><div>${esc(scopeLabel)} · ${date} · ${col.partCount} delar · ${opt.sheets} skivor${opt.boards ? ` · ${opt.boards} brädor virke` : ''} · ${fmtKr(opt.totalCost)}${col.edgeMeters > 0 ? ` · kantlist ${fmt(col.edgeMeters * 1.1)} m` : ''}</div>`);
 
     h.push('<h2>Kaplista</h2><table><thead><tr><th>Nr</th><th>Antal</th><th>Längd</th><th>Bredd</th><th>Skiva</th><th>Del</th><th>Objekt</th></tr></thead><tbody>');
-    col.rows.forEach(r => h.push(`<tr><td class="p-num"><b>${r.nr}</b></td><td class="p-num">${r.count}</td><td class="p-num">${fmt(r.l)}${r.lock ? ' ⇅' : ''}</td><td class="p-num">${fmt(r.w)}</td><td>${esc(matLabel(r.t, r.mn))}</td><td>${esc(r.names.join(', '))}</td><td>${esc(r.items.join(', '))}</td></tr>`));
+    col.rows.forEach(r => h.push(`<tr><td class="p-num"><b>${r.nr}</b></td><td class="p-num">${r.count}</td><td class="p-num">${fmt(r.l)}${r.lock ? ' ⇅' : ''}</td><td class="p-num">${fmt(r.w)}</td><td>${esc(r.board ? `Virke ${boardLabel(r.t, r.w, r.mn)}` : matLabel(r.t, r.mn))}</td><td>${esc(r.names.join(', '))}</td><td>${esc(r.items.join(', '))}</td></tr>`));
     h.push('</tbody></table><div style="font-size:8pt;margin-top:1mm">Mått i mm. Kantlistens tjocklek är redan avdragen. ⇅ = delen får inte vändas, ådringen ska gå längs längden.</div>');
 
     if (col.hardware.length) {
@@ -40,6 +40,18 @@ export function buildPrint(el, { projectName, scopeLabel, col, opt, withLabels }
         h.push('</tbody></table>');
     }
 
+    if (col.processing?.length) {
+        h.push('<h2>Hyllhål och spår</h2><table><thead><tr><th>Objekt</th><th>Bearbetning</th><th>Delar</th><th>Antal ytor</th><th>Mått (mm)</th></tr></thead><tbody>');
+        col.processing.forEach(p => h.push(p.kind === 'groove'
+            ? `<tr><td>${esc(p.item)}</td><td>Spår för bakstycke</td><td>${esc(p.part)}</td><td class="p-num">${p.faces * p.count}</td><td>${fmt(p.width)} brett, ${fmt(p.depth)} djupt, ${fmt(p.inset)} från bakkant</td></tr>`
+            : `<tr><td>${esc(p.item)}</td><td>Hyllhål Ø${p.dia} × ${p.depth}</td><td>${esc(p.part)}</td><td class="p-num">${p.faces * p.count}</td><td>Rader ${p.front} från framkant och ${fmt(p.rear)} från bakkant. Från underkant: ${p.holes.map(fmt).join(' · ')}</td></tr>`));
+        h.push('</tbody></table>');
+    }
+    if (opt.linear?.length) {
+        h.push('<h2>Virke</h2><table><thead><tr><th>Virke</th><th>Bräda</th><th>Delar i kaporder (nr: längd)</th><th>Rest</th></tr></thead><tbody>');
+        opt.linear.forEach(r => r.bars.forEach((b, i) => h.push(`<tr><td>${esc(boardLabel(r.stock.t, r.stock.w, r.stock.name))}</td><td class="p-num">${i + 1} (${fmt(r.stock.L)})</td><td class="p-num">${b.cuts.map(c => `#${c.nr}: ${fmt(c.l)}`).join(' · ')}</td><td class="p-num">${fmt(b.left)}</td></tr>`)));
+        h.push('</tbody></table>');
+    }
     h.push('<div class="p-break"></div><h2>Skärscheman</h2>');
     el.innerHTML = h.join('');
     opt.materials.forEach(r => {
