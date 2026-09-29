@@ -12,7 +12,7 @@ Allt körs i webbläsaren och fungerar offline när sidan har laddats en gång.
 - **Fria tjocklekar och spillager** – alla tjocklekar skrivs in direkt i formuläret. Delar med samma tjocklek optimeras på samma skivor; skivformat och pris ställs in under Inställningar och priset kan ändras per tjocklek. Spillbitar sparas och används före nya skivor.
 - **Utskrift/PDF** – kaplista, beslag, borrschema, skärscheman med delnummer och etiketter med QR-kod.
 - **Beslagslista med köplänkar** – Prisjakt, Google Shopping eller en egen länkmall (t.ex. med affiliate-parameter).
-- **Ångra** – objekt tas bort direkt med ✕ i projektlistan och kan ångras från notisen eller med Ctrl/Cmd+Z. Samma gäller spillager, materialbibliotek, nytt och öppnat projekt.
+- **Ångra** – objekt tas bort direkt med ✕ i projektlistan och kan ångras från notisen eller med Ctrl/Cmd+Z. Samma gäller spillager, nytt och öppnat projekt.
 - **Export** – CSV med svenska decimaler och kopiering direkt till Excel. Projekt sparas som `.cutyard`-filer.
 - **PWA** – kan installeras och fungerar offline. Inga CDN:er; typsnitt och bibliotek ligger lokalt.
 
