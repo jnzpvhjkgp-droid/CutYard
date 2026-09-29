@@ -1,13 +1,15 @@
 // CutYard – gränssnitt. All beräkning sker i core.js.
 import {
     fmt, fmtKr, uid, DEFAULT_SETTINGS, SHOPS, sanitizeSettings, shopUrl,
-    thickKey, thickLabel, sanitizeOffcuts, sheetFor, FRAME_PROFILES, PANEL_STYLES, RAISED_PANEL_NOTE, profileTools,
+    matKey, matLabel, parseMatKey, normName, parsePartsTable, sanitizeOffcuts, sheetFor, FRAME_PROFILES, PANEL_STYLES, RAISED_PANEL_NOTE, profileTools,
     SLIDES, slideById, ITEM_TYPES, DEFAULT_PARAMS, makeItem, sanitizeProject, exampleProject,
     buildItem, collect, optimize, buildCsv
 } from './core.js';
 import { Viewer } from './viewer.js';
 import { sheetCanvas } from './draw.js';
 import { profileSvg } from './profiles.js';
+import { renderListEditor, nextRow } from './listEditor.js';
+import { openWorkshop, initWorkshop } from './workshop.js';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -38,14 +40,16 @@ const activeItem = () => state.project.items.find(i => i.id === state.activeId) 
 // ---------------------------------------------------------------------------
 // Formulärschema per objekttyp. Grupper → rader → fält. show(p) styr synlighet.
 // ---------------------------------------------------------------------------
-const TYPE_COLOR = { cabinet: '#5b93f5', drawer: '#a58bf0', shaker: '#5fbf9a' };
-const TYPE_LABEL = { cabinet: 'Skåp', drawer: 'Lådor', shaker: 'Shaker-dörr' };
+const TYPE_COLOR = { cabinet: '#5b93f5', drawer: '#a58bf0', shaker: '#5fbf9a', list: '#e0a458' };
+const TYPE_LABEL = { cabinet: 'Skåp', drawer: 'Lådor', shaker: 'Shaker-dörr', list: 'Egen kaplista' };
 
 const n = (key, label, o = {}) => ({ kind: 'num', key, label, unit: 'mm', ...o });
 const sel = (key, label, options, o = {}) => ({ kind: 'select', key, label, options, ...o });
 const chk = (key, label, o = {}) => ({ kind: 'check', key, label, ...o });
 const note = (text, o = {}) => ({ kind: 'note', text, ...o });
 const html = (render, o = {}) => ({ kind: 'html', render, ...o });
+const txt = (key, label, o = {}) => ({ kind: 'text', key, label, ...o });
+const listField = () => ({ kind: 'list', key: 'rows' });
 const extLink = (url, text) => `<a href="${esc(url)}" target="_blank" rel="noopener" class="whitespace-nowrap hover:underline" style="color: var(--accent)">${esc(text)} ↗</a>`;
 const slideNote = p => { const s = slideById(p.slideId); return `${esc(s.note)}${s.link ? ` ${extLink(s.link.url, `Mer hos ${s.link.label}`)}` : ''}`; };
 const profileOptions = Object.entries(FRAME_PROFILES).map(([k, v]) => [k, v.name]);
@@ -100,7 +104,13 @@ const SCHEMA = {
              n('groove', 'Spårdjup', { min: 0, step: 0.5, hint: 'Spåret för bottnen' })],
             [n('clearance', 'Spel per sida', { min: 0, step: 0.1, show: p => p.slideId === 'custom', hint: 'Mellan skåpsida och lådsida' })],
             [html(slideNote, { cls: 'text-[12px] muted leading-relaxed' })]
-        ], { show: isDrawers, desc: 'Lådlådorna räknas fram automatiskt utifrån skåpets innermått och de skenor du väljer.' })
+        ], { show: isDrawers, desc: 'Lådlådorna räknas fram automatiskt utifrån skåpets innermått och de skenor du väljer.' }),
+        group('Skivtyp och ådring', [
+            [txt('carcassName', 'Stomme'), txt('backName', 'Bakstycke', { show: p => p.backT > 0 })],
+            [txt('frontName', 'Fronter', { show: hasFronts }), txt('panelName', 'Fyllning', { show: isShakerFront })],
+            [txt('drawerName', 'Lådsidor', { show: isDrawers }), txt('drawerBotName', 'Lådbotten', { show: isDrawers })],
+            [chk('grain', 'Ådringen ska gå längs delarnas längd', { hint: 'Synliga delar vrids inte på skivan. Dolda delar som lådbottnar och bakstycken vrids ändå.' })]
+        ], { collapsible: true, desc: 'Ge skivorna ett namn om du använder olika sorters skivor med samma tjocklek, t.ex. "Vit melamin" och "Björkplywood". Då hamnar de på olika skivor i skärschemat.' })
     ],
     drawer: [
         group('Skåpsöppning', [[n('w', 'Innerbredd', { min: 50, hint: 'Mellan skåpsidorna' }), n('h', 'Lådans höjd', { min: 30 }), n('d', 'Innerdjup', { min: 100, hint: 'Fram till bakstycket' })]],
@@ -111,7 +121,11 @@ const SCHEMA = {
             [sel('slideId', 'Typ av skenor', slideOptions)],
             [n('clearance', 'Spel per sida', { min: 0, step: 0.1, show: p => p.slideId === 'custom', hint: 'Mellan skåpsida och lådsida' })],
             [html(slideNote, { cls: 'text-[12px] muted leading-relaxed' })]
-        ])
+        ]),
+        group('Skivtyp och ådring', [
+            [txt('sideName', 'Lådsidor'), txt('botName', 'Lådbotten')],
+            [chk('grain', 'Ådringen ska gå längs delarnas längd', { hint: 'Synliga delar vrids inte på skivan. Dolda delar som lådbottnar och bakstycken vrids ändå.' })]
+        ], { collapsible: true, desc: 'Ge skivorna ett namn om du använder olika sorters skivor med samma tjocklek, t.ex. "Vit melamin" och "Björkplywood". Då hamnar de på olika skivor i skärschemat.' })
     ],
     shaker: [
         group('Dörrmått', [[n('w', 'Bredd', { min: 100 }), n('h', 'Höjd', { min: 100 })]], { desc: 'Dörrens färdiga mått.' }),
@@ -123,7 +137,14 @@ const SCHEMA = {
             [n('frame', 'Rambredd', { min: 20, hint: 'Ramens synliga bredd' }), n('tenon', 'Tappdjup', { min: 0, hint: 'Enligt din fräsats' })],
             [n('frameT', 'Ramtjocklek', { min: 5, step: 0.5 }), n('panelT', 'Fyllning', { min: 2, step: 0.5, hint: 'Fyllningens tjocklek' })]
         ], { desc: 'Ramen består av två stående delar (stiles) och två liggande (rails). Tappdjupet är hur långt de liggande delarna går in i de stående.' }),
-        group('Gångjärn', [[chk('hinges', 'Räkna gångjärn och borrschema')]])
+        group('Gångjärn', [[chk('hinges', 'Räkna gångjärn och borrschema')]]),
+        group('Skivtyp och ådring', [
+            [txt('frameName', 'Ram'), txt('panelName', 'Fyllning')],
+            [chk('grain', 'Ådringen ska gå längs delarnas längd', { hint: 'Synliga delar vrids inte på skivan. Dolda delar som lådbottnar och bakstycken vrids ändå.' })]
+        ], { collapsible: true, desc: 'Ge skivorna ett namn om du använder olika sorters skivor med samma tjocklek, t.ex. "Vit melamin" och "Björkplywood". Då hamnar de på olika skivor i skärschemat.' })
+    ],
+    list: [
+        group('Delar', [[listField()]], { desc: 'Skriv in delarna du vill såga, eller klistra in en lista från Excel. Längden är måttet som ska gå längs ådringen.' })
     ]
 };
 
@@ -149,6 +170,11 @@ function renderField(f, item) {
         wrap.className = 'text-[12px] faint leading-relaxed';
     } else if (f.kind === 'html') {
         wrap.className = `min-w-0 ${f.cls || ''}`;
+    } else if (f.kind === 'text') {
+        wrap.innerHTML = `<label class="lbl" for="${id}">${esc(f.label)}</label><input type="text" id="${id}" class="fld" list="matNames" maxlength="40" value="${esc(p[f.key] || '')}" placeholder="Valfritt">`;
+    } else if (f.kind === 'list') {
+        renderListEditor(wrap, item, listHooks);
+        return { field: f, wrap, input: null };
     }
     return { field: f, wrap, input: wrap.querySelector('input,select') };
 }
@@ -158,10 +184,21 @@ function renderForm() {
     const form = $('itemForm');
     form.innerHTML = '';
     fieldEls = [];
+    updateMatNames();
     for (const g of SCHEMA[item.type]) {
-        const fs = document.createElement('fieldset');
-        fs.className = 'space-y-3';
-        fs.innerHTML = `<legend class="group-title mb-1">${esc(g.title)}</legend>${g.desc ? `<p class="text-[12px] muted leading-relaxed">${esc(g.desc)}</p>` : '<div></div>'}`;
+        let fs;
+        if (g.collapsible) {
+            // Frivilliga inställningar: hopfällda tills man behöver dem
+            const used = g.rows.flat().some(f => f.kind === 'text' ? normName(item.params[f.key]) : f.kind === 'check' && item.params[f.key]);
+            fs = document.createElement('details');
+            fs.className = 'space-y-3 group-details';
+            fs.open = used;
+            fs.innerHTML = `<summary class="group-title cursor-pointer select-none">${esc(g.title)} <span class="faint font-normal text-[12px]">valfritt</span></summary>${g.desc ? `<p class="text-[12px] muted leading-relaxed">${esc(g.desc)}</p>` : ''}`;
+        } else {
+            fs = document.createElement('fieldset');
+            fs.className = 'space-y-3';
+            fs.innerHTML = `<legend class="group-title mb-1">${esc(g.title)}</legend>${g.desc ? `<p class="text-[12px] muted leading-relaxed">${esc(g.desc)}</p>` : '<div></div>'}`;
+        }
         const rowEls = [];
         for (const row of g.rows) {
             const r = document.createElement('div');
@@ -204,6 +241,39 @@ function readField({ field, input }) {
     } else if (field.kind === 'check') item.params[field.key] = input.checked;
     else item.params[field.key] = input.value;
 }
+
+// Förslag på skivtyper som redan används i projektet (datalist för textfälten)
+function updateMatNames() {
+    const names = new Set();
+    for (const it of state.project.items) {
+        for (const [k, v] of Object.entries(it.params)) if (k.endsWith('Name') && normName(v)) names.add(normName(v));
+        (it.params.rows || []).forEach(r => { if (r.mn) names.add(r.mn); });
+    }
+    state.offcuts.forEach(o => { if (o.mn) names.add(o.mn); });
+    $('matNames').innerHTML = [...names].sort((a, b) => a.localeCompare(b, 'sv')).map(n => `<option value="${esc(n)}"></option>`).join('');
+}
+
+// Kopplingar från listredigeraren
+const listHooks = {
+    changed(immediate) { renderItemList(); if (immediate) recompute(); else scheduleRecompute(); },
+    removeRow(id) {
+        const item = activeItem();
+        const idx = item.params.rows.findIndex(r => r.id === id);
+        if (idx < 0) return;
+        const name = item.params.rows[idx].name || `Del ${idx + 1}`;
+        withUndo(`${name} borttagen`, () => { item.params.rows.splice(idx, 1); renderForm(); recompute(); });
+    },
+    addRow() {
+        const item = activeItem();
+        item.params.rows.push(nextRow(item.params.rows));
+        renderForm();
+        recompute();
+        const cards = $('itemForm').querySelectorAll('[data-row] [data-col="name"]');
+        cards[cards.length - 1]?.focus();
+    },
+    openPaste() { openPaste(); },
+    importFile() { $('csvUpload').click(); }
+};
 
 // ---------------------------------------------------------------------------
 // Objektlista och editor
@@ -299,18 +369,18 @@ function renderResults(col, opt) {
 
     const warnings = [...col.warnings];
     opt.materials.forEach(r => {
-        if (r.oversize.length) warnings.push(`${r.oversize.length} del(ar) i ${thickLabel(r.sheet.t)} är större än skivan: ${[...new Set(r.oversize.map(p => `#${p.nr} ${fmt(p.l)}×${fmt(p.w)}`))].join(', ')} mm.`);
+        if (r.oversize.length) warnings.push(`${r.oversize.length} del(ar) i ${matLabel(r.sheet.t, r.sheet.name)} är större än skivan: ${[...new Set(r.oversize.map(p => `#${p.nr} ${fmt(p.l)}×${fmt(p.w)}`))].join(', ')} mm.`);
     });
     $('resWarn').hidden = !warnings.length;
     $('resWarn').innerHTML = warnings.map(w => `<div>${esc(w)}</div>`).join('');
 
     // Kaplista: en tabell, grupperad per tjocklek
     const byT = new Map();
-    col.rows.forEach(r => { const k = thickKey(r.t); if (!byT.has(k)) byT.set(k, []); byT.get(k).push(r); });
+    col.rows.forEach(r => { const k = matKey(r.t, r.mn); if (!byT.has(k)) byT.set(k, []); byT.get(k).push(r); });
     $('resList').innerHTML = col.rows.length ? `<table class="tbl">
         <thead><tr><th>Nr</th><th class="!text-right">Antal</th><th class="!text-right">Längd</th><th class="!text-right">Bredd</th><th>Del</th>${showItems ? '<th>Hör till</th>' : ''}</tr></thead>
         <tbody>${[...byT.values()].map(rows => `
-            <tr><td colspan="${showItems ? 6 : 5}" class="!pt-5 !pb-2"><span class="font-semibold">${thickLabel(rows[0].t)}</span> <span class="faint text-[12px] ml-2 num">${rows.reduce((a, r) => a + r.count, 0)} delar</span></td></tr>
+            <tr><td colspan="${showItems ? 6 : 5}" class="!pt-5 !pb-2"><span class="font-semibold">${esc(matLabel(rows[0].t, rows[0].mn))}</span> <span class="faint text-[12px] ml-2 num">${rows.reduce((a, r) => a + r.count, 0)} delar</span></td></tr>
             ${rows.map(r => `<tr>
                 <td><span class="nr">${r.nr}</span></td>
                 <td class="num text-right">${r.count}</td>
@@ -325,14 +395,15 @@ function renderResults(col, opt) {
     // Skärscheman per tjocklek
     const resOpt = $('resOpt');
     resOpt.innerHTML = '';
-    opt.materials.forEach(r => {
-        const key = thickKey(r.sheet.t);
+    opt.materials.forEach((r, mi) => {
+        const key = r.sheet.key;
+        const label = matLabel(r.sheet.t, r.sheet.name);
         const own = r.sheet.custom;
         const inp = (field, unit, w, def, min) => `<span class="fld-unit ${w}"><input type="number" min="${min}" class="fld !py-1" data-sheet="${key}" data-field="${field}"
-            value="${own[field] ?? ''}" placeholder="${def}" aria-label="${field === 'price' ? 'Pris per skiva' : field === 'L' ? 'Skivans längd' : 'Skivans bredd'} för ${thickLabel(r.sheet.t)}"><span class="unit">${unit}</span></span>`;
+            value="${own[field] ?? ''}" placeholder="${def}" aria-label="${field === 'price' ? 'Pris per skiva' : field === 'L' ? 'Skivans längd' : 'Skivans bredd'} för ${esc(label)}"><span class="unit">${unit}</span></span>`;
         const sec = document.createElement('section');
         sec.innerHTML = `<div class="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
-                <h3 class="font-semibold">${thickLabel(r.sheet.t)}</h3>
+                <h3 class="font-semibold">${esc(label)}</h3>
                 <span class="text-[12px] muted">${r.sheets} ${r.sheets === 1 ? 'ny skiva' : 'nya skivor'}${r.offcutsUsed.length ? ` + ${r.offcutsUsed.length} från spillager` : ''}</span>
                 <div class="ml-auto flex flex-wrap items-center gap-2 text-[12px] muted">
                     <span title="Tomt fält = standard från Inställningar">Skivans mått</span>${inp('L', 'mm', 'w-28', state.settings.sheetL, 300)}<span>×</span>${inp('W', 'mm', 'w-28', state.settings.sheetW, 300)}
@@ -343,7 +414,7 @@ function renderResults(col, opt) {
             <div class="grid gap-4 xl:grid-cols-2"></div>`;
         const grid = sec.lastElementChild;
         let sheetNo = 0;
-        r.bins.forEach(b => {
+        r.bins.forEach((b, bi) => {
             const fig = document.createElement('figure');
             const title = b.kind === 'offcut' ? `Spillbit ${fmt(b.L)} × ${fmt(b.W)}` : `Skiva ${++sheetNo}`;
             const c = sheetCanvas(b, 1000, 'dark');
@@ -353,7 +424,8 @@ function renderResults(col, opt) {
             fig.appendChild(c);
             const cap = document.createElement('figcaption');
             cap.className = 'mt-1.5 flex justify-between text-[12px] muted';
-            cap.innerHTML = `<span>${title} · ${b.placements.length} delar</span><span>${Math.round(b.util * 100)} % av skivan används</span>`;
+            cap.innerHTML = `<span>${title} · ${b.placements.length} delar · ${Math.round(b.util * 100)} % av skivan används</span>
+                <button type="button" class="hover:underline shrink-0" style="color: var(--accent)" data-workshop="${mi}:${bi}">Såga i verkstadsläge →</button>`;
             fig.appendChild(cap);
             grid.appendChild(fig);
         });
@@ -545,7 +617,7 @@ function loadProjectData(data) {
 // ---------------------------------------------------------------------------
 // Dialoger
 // ---------------------------------------------------------------------------
-const MODALS = ['modalSettings', 'modalOffcuts', 'modalNew', 'modalProfiles'];
+const MODALS = ['modalSettings', 'modalOffcuts', 'modalNew', 'modalProfiles', 'modalPaste'];
 let lastFocus = null;
 function openModal(id) { lastFocus = document.activeElement; $(id).hidden = false; $(id).querySelector('input,select,button')?.focus(); }
 function closeModal(id) { $(id).hidden = true; lastFocus?.focus?.(); }
@@ -583,9 +655,10 @@ $('resOpt').addEventListener('change', e => {
     const entry = sheets[key] || {};
     if (raw === '') delete entry[field]; else entry[field] = +raw;
     sheets[key] = entry;
-    const before = sheetFor(state.settings, +key);
+    const mk = parseMatKey(key);
+    const before = sheetFor(state.settings, mk.t, mk.name);
     state.settings = sanitizeSettings({ ...state.settings, sheets });
-    const after = sheetFor(state.settings, +key);
+    const after = sheetFor(state.settings, mk.t, mk.name);
     if (raw !== '' && after[field] !== +raw) toast(field === 'price' ? 'Priset kan inte vara negativt.' : 'Skivan måste vara minst 300 mm.', true);
     if (before.L !== after.L || before.W !== after.W || before.price !== after.price) recompute();
 });
@@ -629,8 +702,8 @@ $('btnCloseProfiles').addEventListener('click', () => closeModal('modalProfiles'
 function renderOffcuts() {
     const list = [...state.offcuts].sort((a, b) => b.t - a.t || b.l * b.w - a.l * a.w);
     $('offcutList').innerHTML = list.length ? `<div class="max-h-72 overflow-y-auto"><table class="tbl">
-        <thead><tr><th>Tjocklek</th><th>Mått</th><th></th></tr></thead>
-        <tbody>${list.map(o => `<tr><td class="num">${thickLabel(o.t)}</td><td class="num">${fmt(o.l)} × ${fmt(o.w)} mm</td>
+        <thead><tr><th>Skiva</th><th>Mått</th><th></th></tr></thead>
+        <tbody>${list.map(o => `<tr><td>${esc(matLabel(o.t, o.mn))}</td><td class="num">${fmt(o.l)} × ${fmt(o.w)} mm</td>
             <td class="text-right"><button type="button" data-deloff="${esc(o.id)}" class="muted hover:text-[var(--danger)] px-1" aria-label="Ta bort spillbit">✕</button></td></tr>`).join('')}</tbody></table></div>`
         : '<p class="muted text-[13px]">Inga sparade spillbitar.</p>';
 }
@@ -644,7 +717,7 @@ $('offcutList').addEventListener('click', e => {
 $('btnAddOffcut').addEventListener('click', () => {
     const t = +$('newOffT').value, l = +$('newOffL').value, w = +$('newOffW').value;
     if (!(t > 0 && l > 0 && w > 0)) { toast('Ange tjocklek, längd och bredd.', true); return; }
-    state.offcuts = sanitizeOffcuts([...state.offcuts, { id: uid('off'), t, l: Math.max(l, w), w: Math.min(l, w) }]);
+    state.offcuts = sanitizeOffcuts([...state.offcuts, { id: uid('off'), t, mn: $('newOffMn').value, l: Math.max(l, w), w: Math.min(l, w) }]);
     $('newOffL').value = ''; $('newOffW').value = '';
     renderOffcuts();
     recompute();
@@ -656,6 +729,69 @@ $('btnSaveOffcuts').addEventListener('click', () => {
         state.offcuts = state.offcuts.filter(o => !used.has(o.id)).concat(opt.newOffcuts.map(o => ({ id: uid('off'), ...o })));
         recompute();
     });
+});
+
+// Inklistring från Excel och import av CSV-fil
+function pasteDefaultT() { const v = parseFloat($('pasteT').value.replace(',', '.')); return v > 0 ? v : 16; }
+function renderPastePreview() {
+    const res = parsePartsTable($('pasteText').value, { defaultT: pasteDefaultT() });
+    const n = res.rows.length;
+    $('btnPasteApply').disabled = !n;
+    $('btnPasteApply').textContent = n ? `Lägg till ${n} ${n === 1 ? 'del' : 'delar'}` : 'Lägg till';
+    if (!$('pasteText').value.trim()) { $('pastePreview').innerHTML = ''; return; }
+    const shown = res.rows.slice(0, 8);
+    $('pastePreview').innerHTML = `<p class="text-[12px] muted mb-2">${res.header ? 'Rubrikraden kändes igen.' : 'Ingen rubrikrad hittades, kolumnerna läses som Antal, Längd, Bredd, Tjocklek, Namn, Skivtyp.'} ${n} ${n === 1 ? 'del' : 'delar'} hittades.</p>
+        ${n ? `<div class="overflow-x-auto"><table class="tbl"><thead><tr><th class="!text-right">Antal</th><th class="!text-right">Längd</th><th class="!text-right">Bredd</th><th class="!text-right">Tjocklek</th><th>Namn</th><th>Skivtyp</th></tr></thead>
+        <tbody>${shown.map(r => `<tr><td class="num text-right">${r.qty}</td><td class="num text-right">${fmt(r.l)}</td><td class="num text-right">${fmt(r.w)}</td><td class="num text-right">${fmt(r.t)}</td><td>${esc(r.name)}</td><td class="muted">${esc(r.mn)}</td></tr>`).join('')}
+        ${n > shown.length ? `<tr><td colspan="6" class="faint">… och ${n - shown.length} till</td></tr>` : ''}</tbody></table></div>` : ''}
+        ${res.errors.length ? `<div class="note-warn mt-3">${res.errors.slice(0, 5).map(e => `<div>${esc(e)}</div>`).join('')}${res.errors.length > 5 ? `<div>… och ${res.errors.length - 5} rader till som inte kunde läsas.</div>` : ''}</div>` : ''}`;
+}
+function openPaste(text = '') {
+    $('pasteText').value = text;
+    renderPastePreview();
+    openModal('modalPaste');
+    $('pasteText').focus();
+}
+$('pasteText').addEventListener('input', renderPastePreview);
+$('pasteT').addEventListener('input', renderPastePreview);
+$('btnPasteCancel').addEventListener('click', () => closeModal('modalPaste'));
+$('btnPasteApply').addEventListener('click', () => {
+    const { rows } = parsePartsTable($('pasteText').value, { defaultT: pasteDefaultT() });
+    if (!rows.length) return;
+    closeModal('modalPaste');
+    withUndo(`${rows.length} ${rows.length === 1 ? 'del' : 'delar'} tillagda`, () => {
+        let item = activeItem();
+        if (item?.type !== 'list') {
+            item = makeItem('list', 'Inklistrad lista', { rows: [] });
+            state.project.items.push(item);
+        } else if (item.params.rows.length === 1 && !item.params.rows[0].name && item.params.rows[0].l === 600 && item.params.rows[0].w === 300) {
+            item.params.rows = []; // ersätt den tomma startraden
+        }
+        item.params.rows.push(...rows);
+        selectItem(item.id);
+    });
+});
+$('csvUpload').addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => { openPaste(String(ev.target.result)); $('csvUpload').value = ''; };
+    reader.onerror = () => { toast('Filen kunde inte läsas.', true); $('csvUpload').value = ''; };
+    reader.readAsText(file);
+});
+$('btnPasteList').addEventListener('click', () => openPaste());
+
+// Verkstadsläge
+function startWorkshop(matIndex = 0, binIndex = 0) {
+    if (!state.last?.opt.materials.length) { toast('Det finns inget att såga ännu.', true); return; }
+    openWorkshop(state.last.opt, { matIndex, binIndex }, state.settings.kerf);
+}
+$('btnWorkshop').addEventListener('click', () => startWorkshop());
+$('resOpt').addEventListener('click', e => {
+    const w = e.target.closest('[data-workshop]')?.dataset.workshop;
+    if (!w) return;
+    const [mi, bi] = w.split(':').map(Number);
+    startWorkshop(mi, bi);
 });
 
 // ---------------------------------------------------------------------------
@@ -793,6 +929,7 @@ function init() {
         if (item.excluded[key]) delete item.excluded[key]; else item.excluded[key] = true;
         recompute();
     });
+    initWorkshop();
     setTab(store.get(KEYS.tab) || 'list');
     selectItem(state.activeId);
     if (document.fonts?.ready) document.fonts.ready.then(() => recompute());

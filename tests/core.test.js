@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
     DEFAULT_SETTINGS, DEFAULT_PARAMS, sanitizeSettings, sanitizeProject, sanitizeParams, sanitizeOffcuts, sheetFor,
     buildCabinet, buildDrawer, buildShaker, drawerBox, slideById, pickSlideLength,
-    hingeCount, hingePositions, collect, optimize, optimizeSheets, makeItem, buildCsv, shopUrl, exampleProject
+    hingeCount, hingePositions, collect, optimize, optimizeSheets, makeItem, makeListRow, buildList, parsePartsTable, cutSequence, matKey, matLabel, buildCsv, shopUrl, exampleProject
 } from '../src/core.js';
 
 const S = { ...DEFAULT_SETTINGS };
@@ -289,4 +289,82 @@ test('spillbitar kräver tjocklek', () => {
 test('butikslänkar kräver https-mall', () => {
     assert.match(shopUrl(S, 'gångjärn'), /^https:\/\/www\.prisjakt\.nu\/search\?search=g%C3%A5ngj%C3%A4rn$/);
     assert.equal(shopUrl({ shop: 'custom', shopTemplate: 'javascript:alert({q})' }, 'x'), null);
+});
+
+// --- Steg 1: egen kaplista, skivtyper, kantlist per kant, ådring per del, sågordning ---
+test('egen kaplista: antal per rad, kantlist per kant och ådring per del', () => {
+    const item = makeItem('list', 'Hylla', { rows: [
+        makeListRow({ name: 'Sida', qty: 2, l: 1800, w: 300, t: 18, edges: { l1: true, w1: true }, grain: true }),
+        makeListRow({ name: 'Hyllplan', qty: 4, l: 300, w: 764, t: 18 })
+    ] });
+    item.qty = 2;
+    const col = collect([item], S);
+    const side = col.rows.find(r => r.names.includes('Sida'));
+    assert.equal(side.count, 4);                          // 2 per hylla × 2 hyllor
+    assert.deepEqual([side.l, side.w], [1799, 299]);      // en kant längs vardera sidan
+    assert.equal(side.lock, true);
+    const shelf = col.rows.find(r => r.names.includes('Hyllplan'));
+    assert.deepEqual([shelf.l, shelf.w, shelf.lock], [764, 300, false]); // får vridas: längsta sidan först
+    assert.equal(round(col.edgeMeters), round((1800 + 300) * 4 / 1000));
+});
+
+test('ny egen kaplista får en första rad', () => {
+    assert.equal(makeItem('list').params.rows.length, 1);
+    assert.equal(sanitizeProject({ items: [{ type: 'list', params: { rows: [{ l: 'x' }, { l: 500, w: 200, t: 12, mn: ' Björk ' }] } }] }).items[0].params.rows[1].mn, 'Björk');
+});
+
+test('skivtyp skiljer skivor med samma tjocklek åt', () => {
+    const a = makeItem('cabinet', 'A', { carcassT: 18, carcassName: 'Vit melamin', fronts: 'doors', frontT: 18, frontName: 'Björkplywood', backT: 0, shelves: 0 });
+    const col = collect([a], S);
+    assert.deepEqual([...new Set(col.rows.map(r => matKey(r.t, r.mn)))].sort(), ['18|björkplywood', '18|vit melamin']);
+    const res = optimize(col.rows, S);
+    assert.equal(res.materials.length, 2);
+    assert.equal(matLabel(18, 'Björkplywood'), '18 mm Björkplywood');
+    // Skärschemana kommer i kaplistans ordning, tjockast först
+    const mixed = optimize(collect(exampleProject().items, S).rows, S).materials.map(m => m.sheet.t);
+    assert.deepEqual(mixed, [...mixed].sort((a, b) => b - a));
+});
+
+test('namngiven skiva ärver tjocklekens format men kan ha eget', () => {
+    const s = sanitizeSettings({ sheets: { '18': { L: 2500 }, '18|björk': { price: 900 } } });
+    const f = sheetFor(s, 18, 'Björk');
+    assert.deepEqual([f.L, f.W, f.price], [2500, 1220, 900]);
+});
+
+test('ådring per objekt låser synliga delar men inte dolda', () => {
+    const col = collect([makeItem('drawer', 'L', { grain: true })], S);
+    assert.equal(col.rows.find(r => r.names.includes('Lådsida vänster')).lock, true);
+    assert.equal(col.rows.find(r => r.names.includes('Lådbotten')).lock, false);
+});
+
+test('inklistring: rubrikrad, tabbar och decimalkomma', () => {
+    const txt = 'Antal\tLängd\tBredd\tTjocklek\tNamn\tSkivtyp\n2\t720,5\t560\t16\tSida\tMelamin\n1\t500\tx\t16\tFel\n\n';
+    const r = parsePartsTable(txt);
+    assert.equal(r.rows.length, 1);
+    assert.deepEqual([r.rows[0].qty, r.rows[0].l, r.rows[0].w, r.rows[0].t, r.rows[0].name, r.rows[0].mn], [2, 720.5, 560, 16, 'Sida', 'Melamin']);
+    assert.equal(r.errors.length, 1);
+});
+
+test('inklistring utan rubrik och från CutYards egen CSV', () => {
+    assert.deepEqual(parsePartsTable('3;800;400;18;Hylla').rows.map(r => [r.qty, r.l, r.w, r.t, r.name]), [[3, 800, 400, 18, 'Hylla']]);
+    const csv = buildCsv(collect([makeItem('shaker', 'D', {})], S));
+    const back = parsePartsTable(csv.split('\n\nBESLAGSLISTA')[0]);
+    assert.ok(back.rows.length >= 3);
+    assert.ok(back.rows.every(r => r.t > 0 && r.l > 0));
+});
+
+test('sågordning: varje del blir klar exakt en gång och får rätt mått', () => {
+    const col = collect(exampleProject().items, S);
+    const res = optimize(col.rows, S);
+    for (const m of res.materials) for (const b of m.bins) {
+        const steps = cutSequence(b, S.kerf);
+        const done = steps.filter(x => x.kind === 'done');
+        assert.equal(done.length, b.placements.length);
+        assert.deepEqual([...new Set(done.map(d => d.piece))].sort((x, y) => x - y), b.placements.map((_, i) => i));
+        for (const d of done) {
+            const p = b.placements[d.piece];
+            assert.ok(Math.abs((d.region.x1 - d.region.x0) - p.dl) < 1e-6 && Math.abs((d.region.y1 - d.region.y0) - p.dw) < 1e-6, 'fel mått på färdig del');
+        }
+        assert.ok(steps.filter(x => x.kind === 'cut').every(c => c.dist > 0 && c.len > 0));
+    }
 });

@@ -53,8 +53,9 @@ export function sanitizeSettings(s) {
     out.sheets = {};
     const okNum = (v, min) => v !== '' && v != null && Number.isFinite(+v) && +v >= min;
     const put = (k, field, v, min) => {
-        if (!(Number.isFinite(+k) && +k > 0) || !okNum(v, min)) return;
-        (out.sheets[thickKey(+k)] ??= {})[field] = +v;
+        const { t, name } = parseMatKey(k);
+        if (!(Number.isFinite(t) && t > 0) || !okNum(v, min)) return;
+        (out.sheets[matKey(t, name)] ??= {})[field] = +v;
     };
     if (isObj(s.sheets)) for (const [k, o] of Object.entries(s.sheets)) if (isObj(o)) { put(k, 'L', o.L, 300); put(k, 'W', o.W, 300); put(k, 'price', o.price, 0); }
     if (isObj(s.prices)) for (const [k, v] of Object.entries(s.prices)) if (out.sheets[thickKey(+k)]?.price == null) put(k, 'price', v, 0); // äldre format
@@ -68,19 +69,29 @@ export function shopUrl(settings, query) {
 }
 
 // ---------------------------------------------------------------------------
-// Skivor identifieras bara av sin tjocklek. Skivformat och pris kommer från inställningarna.
+// En skiva identifieras av tjocklek och ett frivilligt namn (skivtyp), t.ex. "Björkplywood".
+// Delar med samma tjocklek men olika skivtyp hamnar på olika skivor.
+// Skivformat och pris kommer från inställningarna och kan ändras per skiva.
 // ---------------------------------------------------------------------------
 export const thickKey = t => String(round1(t));
 export const thickLabel = t => `${fmt(t)} mm`;
-export function sheetFor(S, t) {
-    const own = S.sheets?.[thickKey(t)] || {};
-    return { t, L: own.L ?? S.sheetL, W: own.W ?? S.sheetW, price: own.price ?? S.price, custom: own };
+export const normName = s => (typeof s === 'string' ? s.trim().replace(/\s+/g, ' ').slice(0, 40) : '');
+export const matKey = (t, name = '') => { const n = normName(name).toLowerCase(); return n ? `${thickKey(t)}|${n}` : thickKey(t); };
+export const matLabel = (t, name = '') => (normName(name) ? `${fmt(t)} mm ${normName(name)}` : `${fmt(t)} mm`);
+export function parseMatKey(k) {
+    const i = String(k).indexOf('|');
+    return i < 0 ? { t: +k, name: '' } : { t: +String(k).slice(0, i), name: String(k).slice(i + 1) };
+}
+export function sheetFor(S, t, name = '') {
+    const own = S.sheets?.[matKey(t, name)] || {};
+    const base = normName(name) ? (S.sheets?.[thickKey(t)] || {}) : {}; // en namngiven skiva ärver tjocklekens värden
+    return { t, name: normName(name), key: matKey(t, name), L: own.L ?? base.L ?? S.sheetL, W: own.W ?? base.W ?? S.sheetW, price: own.price ?? base.price ?? S.price, custom: own };
 }
 
 export function sanitizeOffcuts(list) {
     if (!Array.isArray(list)) return [];
     return list.filter(o => isObj(o) && +o.t > 0 && +o.l > 0 && +o.w > 0)
-        .map(o => ({ id: typeof o.id === 'string' ? o.id : uid('off'), t: round1(+o.t), l: round1(+o.l), w: round1(+o.w) }));
+        .map(o => ({ id: typeof o.id === 'string' ? o.id : uid('off'), t: round1(+o.t), mn: normName(o.mn), l: round1(+o.l), w: round1(+o.w) }));
 }
 
 // ---------------------------------------------------------------------------
@@ -220,7 +231,7 @@ export function profileTools(profileId, panelId) {
     return [...fp.bits, ...ps.bits];
 }
 
-export function shakerDoorParts({ w, h, frame, tenon, frameT, panelT, profile = 'square', panelStyle = 'flat', prefix = '', origin = [0, 0, 0] }) {
+export function shakerDoorParts({ w, h, frame, tenon, frameT, panelT, profile = 'square', panelStyle = 'flat', frameName = '', panelName = '', prefix = '', origin = [0, 0, 0] }) {
     const f = frame, tF = frameT, tP = panelT;
     const [ox, oy, oz] = origin;
     const p = prefix ? prefix + ': ' : '';
@@ -232,30 +243,30 @@ export function shakerDoorParts({ w, h, frame, tenon, frameT, panelT, profile = 
     if (panelStyle === 'flat' && tP >= tF) warnings.push(`${prefix || 'Dörren'}: fyllningen är lika tjock som ramen eller tjockare och får inte plats i spåret.`);
     const railL = w - 2 * f + 2 * tenon;
     const pw = Math.max(1, w - 2 * f), ph = Math.max(1, h - 2 * f);
-    const common = { t: tF, grain: true, band: NO_BAND };
+    const common = { t: tF, mn: frameName, grain: 'visible', band: NO_BAND };
     const parts = [
         { ...common, key: `${p}stileL`, name: `${p}Stile vänster`, l: h, w: f, geo: { size: [f, h, tF], pos: [ox - w / 2 + f / 2, oy, oz], role: 'frame' } },
         { ...common, key: `${p}stileR`, name: `${p}Stile höger`, l: h, w: f, geo: { size: [f, h, tF], pos: [ox + w / 2 - f / 2, oy, oz], role: 'frame' } },
         { ...common, key: `${p}railT`, name: `${p}Rail topp`, l: railL, w: f, geo: { size: [pw, f, tF], pos: [ox, oy + h / 2 - f / 2, oz], role: 'frame' } },
         { ...common, key: `${p}railB`, name: `${p}Rail botten`, l: railL, w: f, geo: { size: [pw, f, tF], pos: [ox, oy - h / 2 + f / 2, oz], role: 'frame' } },
-        { key: `${p}panel`, name: `${p}Spegelfyllning`, l: h - 2 * f + 2 * tenon - 2, w: w - 2 * f + 2 * tenon - 2, t: tP, grain: true, band: NO_BAND,
+        { key: `${p}panel`, name: `${p}Spegelfyllning`, l: h - 2 * f + 2 * tenon - 2, w: w - 2 * f + 2 * tenon - 2, t: tP, mn: panelName, grain: 'visible', band: NO_BAND,
           geo: { size: [pw, ph, tP], pos: [ox, oy, oz], role: 'panel' } }
     ];
     return { parts, warnings, thick: tF, tools: profileTools(profile, panelStyle) };
 }
 
-function drawerBoxParts(box, { h, sideT, botT, prefix, origin }) {
+function drawerBoxParts(box, { h, sideT, botT, sideName = '', botName = '', prefix, origin }) {
     const [ox, oy, oz] = origin;
     const t = sideT, tb = botT;
     const p = prefix ? prefix + ': ' : '';
-    const common = { t, grain: true, band: NO_BAND };
+    const common = { t, mn: sideName, grain: 'visible', band: NO_BAND };
     const inner = Math.max(1, box.inner), len = box.len;
     return [
         { ...common, key: `${p}sideL`, name: `${p}Lådsida vänster`, l: len, w: h, geo: { size: [t, h, len], pos: [ox - box.boxW / 2 + t / 2, oy, oz], role: 'drawer' } },
         { ...common, key: `${p}sideR`, name: `${p}Lådsida höger`, l: len, w: h, geo: { size: [t, h, len], pos: [ox + box.boxW / 2 - t / 2, oy, oz], role: 'drawer' } },
         { ...common, key: `${p}front`, name: `${p}Lådstycke fram`, l: inner, w: h, geo: { size: [inner, h, t], pos: [ox, oy, oz + len / 2 - t / 2], role: 'drawer' } },
         { ...common, key: `${p}back`, name: `${p}Lådstycke bak`, l: inner, w: h, geo: { size: [inner, h, t], pos: [ox, oy, oz - len / 2 + t / 2], role: 'drawer' } },
-        { key: `${p}bottom`, name: `${p}Lådbotten`, l: box.botW, w: box.botL, t: tb, grain: false, band: NO_BAND,
+        { key: `${p}bottom`, name: `${p}Lådbotten`, l: box.botW, w: box.botL, t: tb, mn: botName, grain: false, band: NO_BAND,
           geo: { size: [Math.max(1, box.botW), tb, Math.max(1, box.botL)], pos: [ox, oy - h / 2 + box.bottomRecess + tb / 2, oz], role: 'bottom' } }
     ];
 }
@@ -271,10 +282,56 @@ export const DEFAULT_PARAMS = {
     cabinet: { w: 600, h: 720, d: 560, carcassT: 16, backT: 3, shelves: 1, edgeBand: true,
                fronts: 'drawers', doorCount: 'auto', drawerCount: 3, frontT: 19, frontStyle: 'flat', frontBand: false,
                frame: 60, tenon: 10, panelT: 6, profile: 'square', panelStyle: 'flat', slideId: 'blum-movento', clearance: 12.7,
-               drawerSideT: 15, drawerBotT: 4, groove: 6 },
-    drawer: { w: 564, h: 150, d: 500, sideT: 15, botT: 4, slideId: 'ball', clearance: 12.7, groove: 6 },
-    shaker: { w: 400, h: 800, frame: 60, tenon: 10, frameT: 19, panelT: 6, profile: 'square', panelStyle: 'flat', hinges: true }
+               drawerSideT: 15, drawerBotT: 4, groove: 6, grain: false,
+               carcassName: '', backName: '', frontName: '', panelName: '', drawerName: '', drawerBotName: '' },
+    drawer: { w: 564, h: 150, d: 500, sideT: 15, botT: 4, slideId: 'ball', clearance: 12.7, groove: 6, grain: false, sideName: '', botName: '' },
+    shaker: { w: 400, h: 800, frame: 60, tenon: 10, frameT: 19, panelT: 6, profile: 'square', panelStyle: 'flat', hinges: true, grain: false, frameName: '', panelName: '' },
+    // Egen kaplista: fria delar. rows = [{ id, name, qty, l, w, t, mn, grain, edges: { l1, l2, w1, w2 } }]
+    list: { rows: [] }
 };
+
+// ---------------------------------------------------------------------------
+// Egen kaplista
+// ---------------------------------------------------------------------------
+const EDGE_KEYS = ['l1', 'l2', 'w1', 'w2'];
+export function makeListRow(o = {}) {
+    return sanitizeListRow({ id: uid('row'), name: '', qty: 1, l: 600, w: 300, t: 16, mn: '', grain: false, edges: {}, ...o });
+}
+export function sanitizeListRow(r) {
+    if (!isObj(r)) return null;
+    const num = (v, def, lo, hi) => { const n = +v; return v !== '' && v != null && Number.isFinite(n) ? clamp(n, lo, hi) : def; };
+    const edges = isObj(r.edges) ? r.edges : {};
+    return {
+        id: typeof r.id === 'string' && r.id ? r.id.slice(0, 40) : uid('row'),
+        name: typeof r.name === 'string' ? r.name.trim().slice(0, 60) : '',
+        qty: Math.round(num(r.qty, 1, 1, 999)),
+        l: round1(num(r.l, 600, 1, 10000)),
+        w: round1(num(r.w, 300, 1, 10000)),
+        t: round1(num(r.t, 16, 0.5, 100)),
+        mn: normName(r.mn),
+        grain: !!r.grain,
+        edges: Object.fromEntries(EDGE_KEYS.map(k => [k, !!edges[k]]))
+    };
+}
+
+export function buildList(p) {
+    const parts = [];
+    let x = 0;
+    const gap = 40;
+    p.rows.forEach((r, i) => {
+        const band = { l: (r.edges.l1 ? 1 : 0) + (r.edges.l2 ? 1 : 0), w: (r.edges.w1 ? 1 : 0) + (r.edges.w2 ? 1 : 0) };
+        parts.push({ key: `row_${r.id}`, name: r.name || `Del ${i + 1}`, l: r.l, w: r.w, t: r.t, mn: r.mn, qty: r.qty,
+                     grain: r.grain ? 'fixed' : false, band,
+                     geo: { size: [r.w, r.l, r.t], pos: [x + r.w / 2, r.l / 2, 0], role: 'carcass' } });
+        x += r.w + gap;
+    });
+    // Centrera delarna i 3D-vyn
+    const shift = x > 0 ? (x - gap) / 2 : 0;
+    const maxL = Math.max(0, ...p.rows.map(r => r.l));
+    parts.forEach(pt => { pt.geo.pos[0] -= shift; pt.geo.pos[1] -= maxL / 2; });
+    const warnings = p.rows.length ? [] : ['Listan är tom. Lägg till delar eller klistra in en lista från Excel.'];
+    return { parts, hardware: [], warnings, drillings: [], tools: [] };
+}
 
 export function buildCabinet(p, S) {
     const t = p.carcassT, tB = Math.max(0, p.backT);
@@ -288,7 +345,7 @@ export function buildCabinet(p, S) {
     const dc = Math.max(1, d - tB);   // stommens djup; bakstycket läggs på baksidan
     const zc = tB / 2;
     const band = p.edgeBand ? { l: 1, w: 0 } : NO_BAND; // framkanten löper längs l
-    const c = { t, grain: true, band };
+    const c = { t, mn: p.carcassName, grain: 'visible', band };
     parts.push(
         { ...c, key: 'sideL', name: 'Vänster sida', l: h, w: dc, geo: { size: [t, h, dc], pos: [-w / 2 + t / 2, 0, zc], role: 'carcass' } },
         { ...c, key: 'sideR', name: 'Höger sida', l: h, w: dc, geo: { size: [t, h, dc], pos: [w / 2 - t / 2, 0, zc], role: 'carcass' } },
@@ -308,7 +365,7 @@ export function buildCabinet(p, S) {
         hardware.push(hw('shelfpin5', 'Hyllbärare 5 mm', shelves * 4, 'st'));
     }
     if (back) {
-        parts.push({ key: 'back', name: 'Bakstycke', l: h - 2, w: w - 2, t: tB, grain: false, band: NO_BAND,
+        parts.push({ key: 'back', name: 'Bakstycke', l: h - 2, w: w - 2, t: tB, mn: p.backName, grain: false, band: NO_BAND,
                      geo: { size: [w - 2, h - 2, tB], pos: [0, 0, -d / 2 + tB / 2], role: 'back' } });
         hardware.push(hw('backscrew', 'Skruv 3,0×16 för bakstycke', Math.ceil(2 * (w + h) / 150), 'st', 'skruv 3,0x16'));
     }
@@ -321,13 +378,13 @@ export function buildCabinet(p, S) {
 
     const addFront = (key, name, fw, fh, x, y, grainAlongWidth) => {
         if (p.frontStyle === 'shaker') {
-            const res = shakerDoorParts({ w: fw, h: fh, frame: p.frame, tenon: p.tenon, frameT: tF, panelT: p.panelT, profile: p.profile, panelStyle: p.panelStyle, prefix: name, origin: [x, y, fz] });
+            const res = shakerDoorParts({ w: fw, h: fh, frame: p.frame, tenon: p.tenon, frameT: tF, panelT: p.panelT, profile: p.profile, panelStyle: p.panelStyle, frameName: p.frontName, panelName: p.panelName, prefix: name, origin: [x, y, fz] });
             res.parts.forEach(pt => { pt.geo.role = pt.geo.role === 'panel' ? 'frontPanel' : 'front'; });
             parts.push(...res.parts);
             warnings.push(...res.warnings);
         } else {
             const [l, ww] = grainAlongWidth ? [fw, fh] : [fh, fw];
-            parts.push({ key, name, l, w: ww, t: tF, grain: true, band: frontBand, geo: { size: [fw, fh, tF], pos: [x, y, fz], role: 'front' } });
+            parts.push({ key, name, l, w: ww, t: tF, mn: p.frontName, grain: 'visible', band: frontBand, geo: { size: [fw, fh, tF], pos: [x, y, fz], role: 'front' } });
         }
     };
 
@@ -361,7 +418,7 @@ export function buildCabinet(p, S) {
             nl = box.nl; clr = box.clr;
             if (i === 0) warnings.push(...box.warnings);
             const by = clamp(y, -h / 2 + t + boxH / 2 + 2, h / 2 - t - boxH / 2 - 2);
-            parts.push(...drawerBoxParts(box, { h: boxH, sideT, botT, prefix: `Låda ${i + 1}`, origin: [0, by, zc + dc / 2 - box.len / 2 - 2] }));
+            parts.push(...drawerBoxParts(box, { h: boxH, sideT, botT, sideName: p.drawerName, botName: p.drawerBotName, prefix: `Låda ${i + 1}`, origin: [0, by, zc + dc / 2 - box.len / 2 - 2] }));
         }
         hardware.push(slideHardware(slide, nl, n, clr));
         hardware.push(hw('handle', 'Handtag eller knopp', n, 'st', 'möbelhandtag'));
@@ -373,7 +430,7 @@ export function buildCabinet(p, S) {
 export function buildDrawer(p) {
     const slide = slideById(p.slideId);
     const box = drawerBox({ openingW: p.w, boxH: p.h, depth: p.d, sideT: p.sideT, botT: p.botT, groove: p.groove, slide, clearance: p.clearance });
-    const parts = drawerBoxParts(box, { h: p.h, sideT: p.sideT, botT: p.botT, prefix: '', origin: [0, 0, 0] });
+    const parts = drawerBoxParts(box, { h: p.h, sideT: p.sideT, botT: p.botT, sideName: p.sideName, botName: p.botName, prefix: '', origin: [0, 0, 0] });
     return {
         parts,
         hardware: [slideHardware(slide, box.nl, 1, box.clr)],
@@ -384,7 +441,7 @@ export function buildDrawer(p) {
 }
 
 export function buildShaker(p) {
-    const res = shakerDoorParts({ w: p.w, h: p.h, frame: p.frame, tenon: p.tenon, frameT: p.frameT, panelT: p.panelT, profile: p.profile, panelStyle: p.panelStyle });
+    const res = shakerDoorParts({ w: p.w, h: p.h, frame: p.frame, tenon: p.tenon, frameT: p.frameT, panelT: p.panelT, profile: p.profile, panelStyle: p.panelStyle, frameName: p.frameName, panelName: p.panelName });
     const hardware = [], drillings = [];
     if (p.hinges) {
         const n = hingeCount(p.h);
@@ -399,7 +456,8 @@ export function buildShaker(p) {
 export const ITEM_TYPES = {
     cabinet: { label: 'Skåp', build: buildCabinet },
     drawer: { label: 'Lådor', build: buildDrawer },
-    shaker: { label: 'Shaker-dörrar', build: buildShaker }
+    shaker: { label: 'Shaker-dörrar', build: buildShaker },
+    list: { label: 'Egen kaplista', build: buildList }
 };
 
 // ---------------------------------------------------------------------------
@@ -421,15 +479,19 @@ export function sanitizeParams(type, params) {
     if (type === 'cabinet' && !('backT' in params) && 'backMat' in params) params.backT = params.backMat === 'none' ? 0 : (LEGACY_THICK[params.backMat] ?? def.backT);
     for (const [k, v] of Object.entries(def)) {
         if (!(k in params)) continue;
+        if (k === 'rows') { out.rows = (Array.isArray(params.rows) ? params.rows : []).slice(0, 500).map(sanitizeListRow).filter(Boolean); continue; }
         if (typeof v === 'number') { const n = +params[k]; if (params[k] !== '' && Number.isFinite(n)) out[k] = n; }
         else if (typeof v === 'boolean') out[k] = !!params[k];
+        else if (k.endsWith('Name')) out[k] = normName(params[k]);
         else if (typeof params[k] === 'string' || typeof params[k] === 'number') out[k] = String(params[k]);
     }
     return out;
 }
 
 export function makeItem(type, name, params) {
-    return { id: uid('it'), type, name: name || ITEM_TYPES[type].label, qty: 1, params: sanitizeParams(type, params), excluded: {} };
+    const out = { id: uid('it'), type, name: name || ITEM_TYPES[type].label, qty: 1, params: sanitizeParams(type, params), excluded: {} };
+    if (type === 'list' && !out.params.rows.length && !params?.rows) out.params.rows = [makeListRow({ name: 'Del 1' })];
+    return out;
 }
 
 export function sanitizeProject(p) {
@@ -482,22 +544,24 @@ export function collect(items, S) {
             let l = part.l - band.w * S.edgeThick;
             let w = part.w - band.l * S.edgeThick;
             const edgeLen = band.l * part.l + band.w * part.w;
-            const lock = S.grainLock && part.grain !== false; // dolda delar får alltid roteras
+            // 'fixed' = låst per del (egen kaplista). 'visible' = synlig del, låses om objektet eller
+            // inställningen säger att ådringen ska följas. false = dold del som alltid får vridas.
+            const lock = part.grain === 'fixed' || (part.grain === 'visible' && (S.grainLock || item.params.grain === true));
             if (!lock && w > l) [l, w] = [w, l];
             // "Låda 2: Lådsida vänster" → "Lådsida vänster" så att listan inte upprepar sig
-            pieces.push({ name: part.name.replace(/^[^:]+: /, ''), item: item.name, t: round1(part.t), l: round1(l), w: round1(w), lock, edgeLen, count: item.qty });
+            pieces.push({ name: part.name.replace(/^[^:]+: /, ''), item: item.name, t: round1(part.t), mn: normName(part.mn), l: round1(l), w: round1(w), lock, edgeLen, count: item.qty * (part.qty || 1) });
         }
     }
     const rows = [];
     for (const p of pieces) {
-        const ex = rows.find(r => r.t === p.t && r.l === p.l && r.w === p.w && r.lock === p.lock);
+        const ex = rows.find(r => r.t === p.t && matKey(r.t, r.mn) === matKey(p.t, p.mn) && r.l === p.l && r.w === p.w && r.lock === p.lock);
         if (ex) {
             ex.count += p.count; ex.edgeLen += p.edgeLen * p.count;
             if (!ex.names.includes(p.name)) ex.names.push(p.name);
             if (!ex.items.includes(p.item)) ex.items.push(p.item);
-        } else rows.push({ t: p.t, l: p.l, w: p.w, lock: p.lock, count: p.count, edgeLen: p.edgeLen * p.count, names: [p.name], items: [p.item] });
+        } else rows.push({ t: p.t, mn: p.mn, l: p.l, w: p.w, lock: p.lock, count: p.count, edgeLen: p.edgeLen * p.count, names: [p.name], items: [p.item] });
     }
-    rows.sort((a, b) => b.t - a.t || b.l - a.l || b.w - a.w);
+    rows.sort((a, b) => b.t - a.t || a.mn.localeCompare(b.mn, 'sv') || b.l - a.l || b.w - a.w);
     rows.forEach((r, i) => { r.nr = i + 1; });
     return {
         rows,
@@ -592,7 +656,7 @@ function packRun(pieces, sheet, S, offcuts, sortKey, split) {
 
 export function optimizeSheets(rows, sheet, S, offcuts = []) {
     const pieces = [];
-    rows.forEach(r => { for (let k = 0; k < r.count; k++) pieces.push({ nr: r.nr, name: r.names[0], l: r.l, w: r.w, lock: r.lock, t: r.t }); });
+    rows.forEach(r => { for (let k = 0; k < r.count; k++) pieces.push({ nr: r.nr, name: r.names[0], l: r.l, w: r.w, lock: r.lock, t: r.t, mn: r.mn }); });
     let best = null;
     for (const sortKey of Object.keys(SORTS)) {
         for (const split of SPLITS) {
@@ -611,7 +675,7 @@ export function optimizeSheets(rows, sheet, S, offcuts = []) {
             .map(f => ({ x: f.x, y: f.y, l: round1(Math.floor(f.w - kerf)), w: round1(Math.floor(f.h - kerf)) }))
             .map(f => f.l >= f.w ? f : { ...f, l: f.w, w: f.l, swapped: true })
             .filter(f => f.l >= S.minOffcutL && f.w >= S.minOffcutW);
-        b.leftovers.forEach(f => newOffcuts.push({ t: sheet.t, l: f.l, w: f.w }));
+        b.leftovers.forEach(f => newOffcuts.push({ t: sheet.t, mn: sheet.name || '', l: f.l, w: f.w }));
     });
     const sheets = best.bins.filter(b => b.kind === 'sheet').length;
     return {
@@ -630,11 +694,12 @@ function better(a, b) {
 }
 
 export function optimize(rows, S, offcuts = []) {
-    const byMat = {};
-    rows.forEach(r => { (byMat[thickKey(r.t)] = byMat[thickKey(r.t)] || []).push(r); });
-    const results = Object.values(byMat).map(list => {
-        const t = list[0].t;
-        return optimizeSheets(list, sheetFor(S, t), S, offcuts.filter(o => thickKey(o.t) === thickKey(t)));
+    // Map behåller kaplistans ordning (tjockast först); ett vanligt objekt sorterar sifferliknande nycklar själv.
+    const byMat = new Map();
+    rows.forEach(r => { const k = matKey(r.t, r.mn); if (!byMat.has(k)) byMat.set(k, []); byMat.get(k).push(r); });
+    const results = [...byMat].map(([k, list]) => {
+        const { t, mn } = list[0];
+        return optimizeSheets(list, sheetFor(S, t, mn), S, offcuts.filter(o => matKey(o.t, o.mn) === k));
     });
     const sheetArea = results.reduce((a, r) => a + r.bins.filter(b => b.kind === 'sheet').reduce((s, b) => s + b.L * b.W, 0), 0);
     const usedArea = results.reduce((a, r) => a + r.bins.filter(b => b.kind === 'sheet').reduce((s, b) => s + b.util * b.L * b.W, 0), 0);
@@ -655,8 +720,8 @@ export function buildCsv(col, { sep = ';', bom = true } = {}) {
     const n = x => String(round1(x)).replace('.', ',');
     const q = s => `"${String(s).replace(/"/g, '""')}"`;
     const L = [];
-    L.push(['Nr', 'Antal', 'Längd (mm)', 'Bredd (mm)', 'Tjocklek (mm)', 'Komponent', 'Objekt', 'Ådring låst', 'Kantlist (m)'].join(sep));
-    col.rows.forEach(r => L.push([r.nr, r.count, n(r.l), n(r.w), n(r.t), q(r.names.join(', ')), q(r.items.join(', ')), r.lock ? 'Ja' : 'Nej', n(r.edgeLen / 1000)].join(sep)));
+    L.push(['Nr', 'Antal', 'Längd (mm)', 'Bredd (mm)', 'Tjocklek (mm)', 'Skivtyp', 'Komponent', 'Objekt', 'Ådring låst', 'Kantlist (m)'].join(sep));
+    col.rows.forEach(r => L.push([r.nr, r.count, n(r.l), n(r.w), n(r.t), q(r.mn || ''), q(r.names.join(', ')), q(r.items.join(', ')), r.lock ? 'Ja' : 'Nej', n(r.edgeLen / 1000)].join(sep)));
     if (col.hardware.length) {
         L.push('', 'BESLAGSLISTA', ['Produkt', 'Antal', 'Enhet'].join(sep));
         col.hardware.forEach(h => L.push([q(h.name), h.qty, q(h.unit)].join(sep)));
@@ -665,5 +730,110 @@ export function buildCsv(col, { sep = ';', bom = true } = {}) {
 }
 
 export function labelText(row) {
-    return `CutYard #${row.nr} | ${fmt(row.l)}x${fmt(row.w)}x${fmt(row.t)} mm | ${row.names.join(', ')}`;
+    return `CutYard #${row.nr} | ${fmt(row.l)}x${fmt(row.w)}x${fmt(row.t)} mm${row.mn ? ` ${row.mn}` : ''} | ${row.names.join(', ')}`;
+}
+
+// ---------------------------------------------------------------------------
+// Sågordning för verkstadsläget. Eftersom schemat är giljotinsnitt kan det alltid delas
+// upp i raka genomgående snitt. Vi börjar med snitt längs bitens långa sida (remsor),
+// sågar sedan varje remsa i delar och kapar bort spill runt varje del.
+// Steg: { kind: 'trim' } | { kind: 'cut', axis, at, region, dist, len } | { kind: 'done', piece, region }
+//   axis 'y' = snittlinjen går längs x-axeln (skivans längd), 'x' = tvärs.
+//   dist = avstånd från bitens övre (y) eller vänstra (x) kant till snittet.
+// ---------------------------------------------------------------------------
+export function cutSequence(bin, kerf) {
+    const E = 1e-6;
+    const steps = [];
+    if (bin.trim > 0) steps.push({ kind: 'trim', trim: bin.trim });
+    const rects = bin.placements.map((p, i) => ({ i, x: p.x, y: p.y, w: p.dl, h: p.dw }));
+    const cut = (axis, at, R) => ({
+        kind: 'cut', axis, at, region: { ...R },
+        dist: round1(at - (axis === 'x' ? R.x0 : R.y0)),
+        len: round1(axis === 'x' ? R.y1 - R.y0 : R.x1 - R.x0)
+    });
+    const rec = (rs, R) => {
+        if (!rs.length) return;
+        if (rs.length === 1) {
+            const r = rs[0];
+            // Kapa bort överskott så att bara delen blir kvar (längsta snittet först)
+            const needX = r.x + r.w < R.x1 - E, needY = r.y + r.h < R.y1 - E;
+            const order = (R.x1 - R.x0) >= (R.y1 - R.y0) ? ['y', 'x'] : ['x', 'y'];
+            for (const axis of order) {
+                if (axis === 'x' && needX) { steps.push(cut('x', r.x + r.w, R)); R = { ...R, x1: r.x + r.w }; }
+                if (axis === 'y' && needY) { steps.push(cut('y', r.y + r.h, R)); R = { ...R, y1: r.y + r.h }; }
+            }
+            steps.push({ kind: 'done', piece: r.i, region: { ...R } });
+            return;
+        }
+        // Snitt längs bitens långa sida först, sedan tvärs
+        const axes = (R.x1 - R.x0) >= (R.y1 - R.y0) ? ['y', 'x'] : ['x', 'y'];
+        for (const axis of axes) {
+            const ends = [...new Set(rs.map(r => (axis === 'x' ? r.x + r.w : r.y + r.h)))].sort((a, b) => a - b);
+            for (const c of ends) {
+                const A = rs.filter(r => (axis === 'x' ? r.x + r.w : r.y + r.h) <= c + E);
+                const B = rs.filter(r => (axis === 'x' ? r.x : r.y) >= c - E);
+                if (A.length && B.length && A.length + B.length === rs.length) {
+                    steps.push(cut(axis, c, R));
+                    rec(A, axis === 'x' ? { ...R, x1: c } : { ...R, y1: c });
+                    rec(B, axis === 'x' ? { ...R, x0: c + kerf } : { ...R, y0: c + kerf });
+                    return;
+                }
+            }
+        }
+        // Ska inte inträffa för giljotinscheman; markera resterande delar som klara så att listan blir komplett.
+        rs.forEach(r => steps.push({ kind: 'done', piece: r.i, region: { x0: r.x, y0: r.y, x1: r.x + r.w, y1: r.y + r.h } }));
+    };
+    rec(rects, { x0: bin.trim, y0: bin.trim, x1: bin.L - bin.trim, y1: bin.W - bin.trim });
+    return steps;
+}
+
+// ---------------------------------------------------------------------------
+// Inklistring från Excel, Numbers eller CSV.
+// Kolumner känns igen från rubrikraden. Utan rubrik antas: Antal, Längd, Bredd, Tjocklek, Namn, Skivtyp.
+// ---------------------------------------------------------------------------
+const HEADER_MAP = [
+    [/^(nr|#|pos)\b/i, 'skip'],
+    [/antal|qty|quantity|st\b|stk/i, 'qty'],
+    [/längd|langd|length|^l\b/i, 'l'],
+    [/bredd|width|^b\b|^w\b/i, 'w'],
+    [/tjock|thick|^t\b/i, 't'],
+    [/skivtyp|material/i, 'mn'],
+    [/namn|name|del|komponent|benämning|part/i, 'name']
+];
+const DEFAULT_COLS = ['qty', 'l', 'w', 't', 'name', 'mn'];
+
+export function parsePartsTable(text, { defaultT = 16 } = {}) {
+    const lines = String(text || '').replace(/\r/g, '').split('\n').map(l => l.replace(/^﻿/, '')).filter(l => l.trim());
+    if (!lines.length) return { rows: [], errors: [], columns: [] };
+    const sep = lines.some(l => l.includes('\t')) ? '\t' : lines.some(l => l.includes(';')) ? ';' : ',';
+    const split = l => l.split(sep).map(c => c.trim().replace(/^"(.*)"$/, '$1').replace(/""/g, '"'));
+    const toNum = v => {
+        if (v == null || v === '') return NaN;
+        let x = String(v).replace(/\s/g, '').replace(/mm$/i, '');
+        if (sep !== ',') x = x.replace(',', '.');
+        return Number(x);
+    };
+    let cols = DEFAULT_COLS;
+    let start = 0;
+    const first = split(lines[0]);
+    const looksLikeHeader = first.some(c => /[a-zåäö]/i.test(c) && !Number.isFinite(toNum(c))) && first.filter(c => Number.isFinite(toNum(c))).length < 2;
+    if (looksLikeHeader) {
+        cols = first.map(c => (HEADER_MAP.find(([re]) => re.test(c)) || [null, 'skip'])[1]);
+        const seen = new Set();
+        cols = cols.map(c => (c !== 'skip' && seen.has(c) ? 'skip' : (seen.add(c), c)));
+        start = 1;
+    }
+    const rows = [], errors = [];
+    for (let i = start; i < lines.length; i++) {
+        const cells = split(lines[i]);
+        const get = key => { const idx = cols.indexOf(key); return idx >= 0 ? cells[idx] : undefined; };
+        const l = toNum(get('l')), w = toNum(get('w'));
+        if (!(l > 0) || !(w > 0)) { errors.push(`Rad ${i + 1}: längd och bredd måste vara tal större än 0.`); continue; }
+        const qty = toNum(get('qty')), t = toNum(get('t'));
+        rows.push(makeListRow({
+            qty: qty > 0 ? Math.round(qty) : 1, l, w, t: t > 0 ? t : defaultT,
+            name: get('name') || '', mn: get('mn') || ''
+        }));
+    }
+    return { rows, errors, columns: cols, header: looksLikeHeader };
 }

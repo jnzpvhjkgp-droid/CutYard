@@ -6,7 +6,10 @@ const THEMES = {
     light: { bg: '#ffffff', trim: '#e5e5e5', a: '#f3f4f6', b: '#e5e7eb', stroke: '#000', text: '#000', sub: '#333', left: '#059669' }
 };
 
-export function drawSheet(canvas, bin, theme = 'dark') {
+/**
+ * opts (verkstadsläget): { done: Set(index), current: index, region: {x0,y0,x1,y1}, cut: {axis, at, region}, trim: bool }
+ */
+export function drawSheet(canvas, bin, theme = 'dark', opts = {}) {
     const T = THEMES[theme];
     const ctx = canvas.getContext('2d');
     const s = canvas.width / bin.L;
@@ -49,6 +52,41 @@ export function drawSheet(canvas, bin, theme = 'dark') {
             if (p.rotated && w > 30 && h > 20) { ctx.font = "bold 11px 'Inter', sans-serif"; ctx.textAlign = 'right'; ctx.fillStyle = T.sub; ctx.fillText('↻', x + w - 4, y + 10); }
         }
     }
+    if (opts.done || opts.cut || opts.region || opts.trim) drawWorkshop(ctx, bin, s, opts);
+}
+
+function drawWorkshop(ctx, bin, s, opts) {
+    const R = r => [r.x0 * s, r.y0 * s, (r.x1 - r.x0) * s, (r.y1 - r.y0) * s];
+    ctx.save();
+    // Färdiga delar tonas gröna med en bock
+    bin.placements.forEach((p, i) => {
+        if (!opts.done?.has(i)) return;
+        ctx.fillStyle = i === opts.current ? 'rgba(79,191,138,0.55)' : 'rgba(79,191,138,0.28)';
+        ctx.fillRect(p.x * s, p.y * s, p.dl * s, p.dw * s);
+        ctx.fillStyle = '#e6e9ef'; ctx.font = "bold 16px 'Inter', sans-serif"; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+        ctx.fillText('✓', p.x * s + 5, p.y * s + 4);
+    });
+    if (opts.trim) {
+        ctx.strokeStyle = '#ef6b6b'; ctx.lineWidth = Math.max(4, bin.trim * s);
+        const h = ctx.lineWidth / 2;
+        ctx.strokeRect(h, h, bin.L * s - 2 * h, bin.W * s - 2 * h);
+    }
+    // Biten man arbetar med just nu
+    if (opts.region) {
+        ctx.strokeStyle = '#5b93f5'; ctx.lineWidth = 3; ctx.setLineDash([10, 6]);
+        ctx.strokeRect(...R(opts.region));
+        ctx.setLineDash([]);
+    }
+    // Snittet som ska sågas
+    if (opts.cut) {
+        const { axis, at, region: g } = opts.cut;
+        ctx.strokeStyle = '#ef6b6b'; ctx.lineWidth = 5; ctx.lineCap = 'round';
+        ctx.beginPath();
+        if (axis === 'y') { ctx.moveTo(g.x0 * s, at * s); ctx.lineTo(g.x1 * s, at * s); }
+        else { ctx.moveTo(at * s, g.y0 * s); ctx.lineTo(at * s, g.y1 * s); }
+        ctx.stroke();
+    }
+    ctx.restore();
 }
 
 export function sheetCanvas(bin, width, theme) {
