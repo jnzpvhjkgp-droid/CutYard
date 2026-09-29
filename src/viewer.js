@@ -1,15 +1,15 @@
 // 3D-vy byggd på Three.js (global THREE från vendor/three.min.js).
 
 const COLORS = {
-    carcass: { color: 0x60A5FA, opacity: 0.85 },
-    shelf: { color: 0x3B82F6 },
-    back: { color: 0x4b5563 },
-    front: { color: 0xE2E8F0, opacity: 0.55, isFront: true },
-    frontPanel: { color: 0xCBD5E1, opacity: 0.5, isFront: true },
-    drawer: { color: 0x9333EA },
-    bottom: { color: 0xC4B5FD },
-    frame: { color: 0x10B981 },
-    panel: { color: 0x6EE7B7 }
+    carcass: { color: 0xC9B79C, opacity: 0.92 },
+    shelf: { color: 0xB5A386 },
+    back: { color: 0x5b6270 },
+    front: { color: 0xE6E9EF, opacity: 0.45, isFront: true },
+    frontPanel: { color: 0xD4D8E0, opacity: 0.4, isFront: true },
+    drawer: { color: 0x9FB6DB },
+    bottom: { color: 0x7F93B5 },
+    frame: { color: 0xC9B79C },
+    panel: { color: 0xB5A386 }
 };
 
 export class Viewer {

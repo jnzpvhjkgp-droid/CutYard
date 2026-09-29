@@ -1,6 +1,6 @@
 // Bygger en utskriftsvänlig version: kaplista, beslag, skärscheman, borrschema och etiketter med QR-kod.
 import qrcode from '../vendor/qrcode.mjs';
-import { fmt, fmtKr, materialLabel, labelText } from './core.js';
+import { fmt, fmtKr, thickLabel, labelText } from './core.js';
 import { sheetCanvas } from './draw.js';
 
 // Å, Ä och Ö ska kodas som UTF-8 i QR-koden
@@ -15,13 +15,13 @@ function qrSvg(text) {
     return qr.createSvgTag({ cellSize: 2, margin: 0, scalable: true });
 }
 
-export function buildPrint(el, { projectName, scopeLabel, col, opt, M, withLabels }) {
+export function buildPrint(el, { projectName, scopeLabel, col, opt, withLabels }) {
     const date = new Date().toLocaleDateString('sv-SE');
     const h = [];
     h.push(`<h1>${esc(projectName)}</h1><div>${esc(scopeLabel)} · ${date} · ${col.partCount} delar · ${opt.sheets} skivor · ${fmtKr(opt.totalCost)}${col.edgeMeters > 0 ? ` · kantlist ${fmt(col.edgeMeters * 1.1)} m` : ''}</div>`);
 
-    h.push('<h2>Kaplista</h2><table><thead><tr><th>Nr</th><th>Antal</th><th>Längd</th><th>Bredd</th><th>Material</th><th>Komponent</th><th>Objekt</th></tr></thead><tbody>');
-    col.rows.forEach(r => h.push(`<tr><td class="p-num"><b>${r.nr}</b></td><td class="p-num">${r.count}</td><td class="p-num">${fmt(r.l)}${r.lock ? ' ⇄' : ''}</td><td class="p-num">${fmt(r.w)}</td><td>${esc(materialLabel(M[r.mat]))}</td><td>${esc(r.names.join(', '))}</td><td>${esc(r.items.join(', '))}</td></tr>`));
+    h.push('<h2>Kaplista</h2><table><thead><tr><th>Nr</th><th>Antal</th><th>Längd</th><th>Bredd</th><th>Tjocklek</th><th>Del</th><th>Objekt</th></tr></thead><tbody>');
+    col.rows.forEach(r => h.push(`<tr><td class="p-num"><b>${r.nr}</b></td><td class="p-num">${r.count}</td><td class="p-num">${fmt(r.l)}${r.lock ? ' ⇄' : ''}</td><td class="p-num">${fmt(r.w)}</td><td class="p-num">${fmt(r.t)}</td><td>${esc(r.names.join(', '))}</td><td>${esc(r.items.join(', '))}</td></tr>`));
     h.push('</tbody></table><div style="font-size:8pt;margin-top:1mm">⇄ = ådring längs längdmåttet. Mått i mm, kantlist avdragen.</div>');
 
     if (col.hardware.length) {
@@ -42,7 +42,7 @@ export function buildPrint(el, { projectName, scopeLabel, col, opt, M, withLabel
             const wrap = document.createElement('div');
             wrap.className = 'p-sheet';
             const title = b.kind === 'offcut' ? `Spillbit ${fmt(b.L)} × ${fmt(b.W)} mm` : `Skiva ${i + 1} · ${fmt(b.L)} × ${fmt(b.W)} mm`;
-            wrap.innerHTML = `<div style="font-weight:600;margin-bottom:1mm">${esc(materialLabel(r.mat))} – ${title} · ${Math.round(b.util * 100)} % nyttjat</div>`;
+            wrap.innerHTML = `<div style="font-weight:600;margin-bottom:1mm">${thickLabel(r.sheet.t)} – ${title} · ${Math.round(b.util * 100)} % nyttjat</div>`;
             const img = document.createElement('img');
             img.alt = title;
             img.src = sheetCanvas(b, 1600, 'light').toDataURL('image/png');
@@ -58,9 +58,9 @@ export function buildPrint(el, { projectName, scopeLabel, col, opt, M, withLabel
         grid.className = 'p-labels';
         const cells = [];
         col.rows.forEach(r => {
-            const svg = qrSvg(labelText(r, M));
+            const svg = qrSvg(labelText(r));
             for (let k = 0; k < r.count; k++) {
-                cells.push(`<div class="p-label">${svg}<div><div class="nr">#${r.nr}</div><div class="dim">${fmt(r.l)} × ${fmt(r.w)}</div><div class="meta">${esc(materialLabel(M[r.mat]))}<br>${esc(r.names.join(', '))}<br>${esc(r.items.join(', '))}</div></div></div>`);
+                cells.push(`<div class="p-label">${svg}<div><div class="nr">#${r.nr}</div><div class="dim">${fmt(r.l)} × ${fmt(r.w)} × ${fmt(r.t)}</div><div class="meta">${esc(r.names.join(', '))}<br>${esc(r.items.join(', '))}</div></div></div>`);
             }
         });
         grid.innerHTML = cells.join('');

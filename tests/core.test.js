@@ -1,12 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-    DEFAULT_SETTINGS, DEFAULT_MATERIALS, DEFAULT_PARAMS, sanitizeSettings, sanitizeProject, sanitizeMaterials,
+    DEFAULT_SETTINGS, DEFAULT_PARAMS, sanitizeSettings, sanitizeProject, sanitizeParams, sanitizeOffcuts, sheetFor,
     buildCabinet, buildDrawer, buildShaker, drawerBox, slideById, pickSlideLength,
-    hingeCount, hingePositions, collect, optimize, optimizeMaterial, makeItem, buildCsv, shopUrl, exampleProject
+    hingeCount, hingePositions, collect, optimize, optimizeSheets, makeItem, buildCsv, shopUrl, exampleProject
 } from '../src/core.js';
 
-const M = Object.fromEntries(DEFAULT_MATERIALS.map(m => [m.id, m]));
 const S = { ...DEFAULT_SETTINGS };
 const part = (res, key) => res.parts.find(p => p.key === key);
 
@@ -37,15 +36,15 @@ test('spår som går igenom sidan ger varning', () => {
 });
 
 test('0 hyllplan och inget bakstycke respekteras', () => {
-    const res = buildCabinet({ ...DEFAULT_PARAMS.cabinet, shelves: 0, backMat: 'none', fronts: 'none' }, M, S);
+    const res = buildCabinet({ ...DEFAULT_PARAMS.cabinet, shelves: 0, backT: 0, fronts: 'none' }, S);
     assert.equal(res.parts.filter(p => p.key.startsWith('shelf')).length, 0);
     assert.equal(part(res, 'back'), undefined);
     assert.equal(part(res, 'sideL').w, DEFAULT_PARAMS.cabinet.d); // fullt djup utan bakstycke
 });
 
 test('kantlist dras av från djupet, även för låga djupa skåp', () => {
-    const item = makeItem('cabinet', 'Lågt', { w: 600, h: 300, d: 560, backMat: 'none', shelves: 0, fronts: 'none', edgeBand: true });
-    const col = collect([item], M, S);
+    const item = makeItem('cabinet', 'Lågt', { w: 600, h: 300, d: 560, backT: 0, shelves: 0, fronts: 'none', edgeBand: true });
+    const col = collect([item], S);
     const side = col.rows.find(r => r.names.includes('Vänster sida'));
     // Sida: 300 (höjd) × 560 (djup). Kantlist på framkanten → djupet blir 559.
     assert.deepEqual([side.l, side.w].sort((a, b) => a - b), [300, 559]);
@@ -53,13 +52,13 @@ test('kantlist dras av från djupet, även för låga djupa skåp', () => {
 });
 
 test('bakstycket krockar inte med stommen: sidornas djup = djup − bakstycke', () => {
-    const res = buildCabinet({ ...DEFAULT_PARAMS.cabinet, fronts: 'none' }, M, S);
-    assert.equal(part(res, 'sideL').w, 560 - M.hdf3.thick);
+    const res = buildCabinet({ ...DEFAULT_PARAMS.cabinet, fronts: 'none' }, S);
+    assert.equal(part(res, 'sideL').w, 560 - DEFAULT_PARAMS.cabinet.backT);
 });
 
 test('hyllplan fördelas jämnt med hyllans tjocklek inräknad', () => {
-    const res = buildCabinet({ ...DEFAULT_PARAMS.cabinet, h: 800, shelves: 3, fronts: 'none' }, M, S);
-    const t = M.melamin16.thick;
+    const res = buildCabinet({ ...DEFAULT_PARAMS.cabinet, h: 800, shelves: 3, fronts: 'none' }, S);
+    const t = DEFAULT_PARAMS.cabinet.carcassT;
     const ys = [part(res, 'bottom'), part(res, 'shelf1'), part(res, 'shelf2'), part(res, 'shelf3'), part(res, 'top')].map(p => p.geo.pos[1]);
     const gaps = ys.slice(1).map((y, i) => round(y - ys[i] - t));
     assert.ok(gaps.every(g => Math.abs(g - gaps[0]) < 0.01), `ojämna fack: ${gaps}`);
@@ -67,7 +66,7 @@ test('hyllplan fördelas jämnt med hyllans tjocklek inräknad', () => {
 const round = n => Math.round(n * 1000) / 1000;
 
 test('dörrar: två dörrar över 600 mm, spel och gångjärn', () => {
-    const res = buildCabinet({ ...DEFAULT_PARAMS.cabinet, w: 800, h: 700, fronts: 'doors', doorCount: 'auto', frontStyle: 'flat', edgeBand: false }, M, S);
+    const res = buildCabinet({ ...DEFAULT_PARAMS.cabinet, w: 800, h: 700, fronts: 'doors', doorCount: 'auto', frontStyle: 'flat' }, S);
     const doors = res.parts.filter(p => p.key.startsWith('door'));
     assert.equal(doors.length, 2);
     assert.equal(doors[0].l, 700 - 2 * S.reveal);
@@ -77,7 +76,7 @@ test('dörrar: två dörrar över 600 mm, spel och gångjärn', () => {
 });
 
 test('lådfronter och lådor genereras i skåp', () => {
-    const res = buildCabinet({ ...DEFAULT_PARAMS.cabinet, drawerCount: 3 }, M, S);
+    const res = buildCabinet({ ...DEFAULT_PARAMS.cabinet, drawerCount: 3 }, S);
     assert.equal(res.parts.filter(p => p.key.startsWith('dfront')).length, 3);
     assert.equal(res.parts.filter(p => p.key.endsWith('bottom') && p.key.startsWith('Låda')).length, 3);
     assert.equal(res.hardware.find(h => h.key.startsWith('slide')).qty, 3);
@@ -91,30 +90,37 @@ test('antal gångjärn och placering', () => {
 });
 
 test('shaker-dörr: rail och fyllning inkluderar tapp', () => {
-    const res = buildShaker({ ...DEFAULT_PARAMS.shaker }, M);
+    const res = buildShaker({ ...DEFAULT_PARAMS.shaker });
     assert.equal(part(res, 'railT').l, 400 - 120 + 20);
     assert.equal(part(res, 'panel').l, 800 - 120 + 20 - 2);
     assert.equal(part(res, 'panel').w, 400 - 120 + 20 - 2);
 });
 
 test('fristående låda använder skåpets djup', () => {
-    const res = buildDrawer({ ...DEFAULT_PARAMS.drawer }, M);
+    const res = buildDrawer({ ...DEFAULT_PARAMS.drawer });
     assert.equal(part(res, 'sideL').l, 450);
     assert.equal(part(res, 'bottom').w, 450 - 30 + 12 - 1);
 });
 
 test('collect grupperar identiska delar och numrerar', () => {
     const item = { ...makeItem('cabinet', 'A', { fronts: 'none', shelves: 0 }), qty: 2 };
-    const col = collect([item], M, S);
+    const col = collect([item], S);
     const sides = col.rows.find(r => r.names.includes('Vänster sida'));
     assert.equal(sides.count, 4);
     assert.deepEqual(col.rows.map(r => r.nr), col.rows.map((_, i) => i + 1));
 });
 
+test('delnamn i kaplistan upprepar inte låd- och dörrprefix', () => {
+    const col = collect([makeItem('cabinet', 'A', { drawerCount: 3 })], S);
+    const sides = col.rows.find(r => r.names.includes('Lådsida vänster'));
+    assert.deepEqual(sides.names, ['Lådsida vänster', 'Lådsida höger']);
+    assert.equal(sides.count, 6);
+});
+
 test('uteslutna delar tas inte med', () => {
     const item = makeItem('cabinet', 'A', { fronts: 'none', shelves: 0 });
     item.excluded = { back: true };
-    const col = collect([item], M, S);
+    const col = collect([item], S);
     assert.ok(!col.rows.some(r => r.names.includes('Bakstycke')));
 });
 
@@ -158,8 +164,8 @@ function isGuillotine(rects, b) {
 
 test('optimering: hela exempelprojektet ger giltig giljotinlayout', () => {
     const p = exampleProject();
-    const col = collect(p.items, M, S);
-    const res = optimize(col.rows, M, S);
+    const col = collect(p.items, S);
+    const res = optimize(col.rows, S);
     assertValidLayout(res, S);
     const placed = res.materials.reduce((a, r) => a + r.bins.reduce((s, b) => s + b.placements.length, 0), 0);
     assert.equal(placed, col.partCount);
@@ -167,21 +173,21 @@ test('optimering: hela exempelprojektet ger giltig giljotinlayout', () => {
 });
 
 test('optimering: ådringslåsta delar roteras aldrig', () => {
-    const rows = [{ nr: 1, mat: 'bjork18', l: 2000, w: 300, lock: true, count: 6, names: ['X'], items: ['A'] }];
-    const r = optimizeMaterial(rows, M.bjork18, S);
+    const rows = [{ nr: 1, t: 18, l: 2000, w: 300, lock: true, count: 6, names: ['X'], items: ['A'] }];
+    const r = optimizeSheets(rows, sheetFor(S, 18), S);
     r.bins.forEach(b => b.placements.forEach(p => assert.equal(p.rotated, false)));
 });
 
 test('optimering: del som är större än skivan rapporteras', () => {
-    const rows = [{ nr: 1, mat: 'mdf19', l: 3000, w: 300, lock: false, count: 1, names: ['Lång'], items: ['A'] }];
-    const r = optimizeMaterial(rows, M.mdf19, S);
+    const rows = [{ nr: 1, t: 19, l: 3000, w: 300, lock: false, count: 1, names: ['Lång'], items: ['A'] }];
+    const r = optimizeSheets(rows, sheetFor(S, 19), S);
     assert.equal(r.oversize.length, 1);
     assert.equal(r.sheets, 0);
 });
 
 test('optimering: spillbitar används före nya skivor', () => {
-    const rows = [{ nr: 1, mat: 'mdf19', l: 400, w: 300, lock: false, count: 2, names: ['Liten'], items: ['A'] }];
-    const r = optimizeMaterial(rows, M.mdf19, S, [{ id: 'o1', mat: 'mdf19', l: 900, w: 400 }]);
+    const rows = [{ nr: 1, t: 19, l: 400, w: 300, lock: false, count: 2, names: ['Liten'], items: ['A'] }];
+    const r = optimizeSheets(rows, sheetFor(S, 19), S, [{ id: 'o1', t: 19, l: 900, w: 400 }]);
     assert.equal(r.sheets, 0);
     assert.deepEqual(r.offcutsUsed, ['o1']);
     assert.equal(r.cost, 0);
@@ -189,17 +195,17 @@ test('optimering: spillbitar används före nya skivor', () => {
 
 test('optimering: kantputs och sågspalt respekteras', () => {
     // Två delar på 1210 mm ryms inte på 2440 med 10 mm putsning per sida och 2,5 mm spalt.
-    const rows = [{ nr: 1, mat: 'mdf19', l: 1210, w: 1200, lock: true, count: 2, names: ['Stor'], items: ['A'] }];
-    const r = optimizeMaterial(rows, M.mdf19, { ...S, trim: 10 });
+    const rows = [{ nr: 1, t: 19, l: 1210, w: 1200, lock: true, count: 2, names: ['Stor'], items: ['A'] }];
+    const r = optimizeSheets(rows, sheetFor(S, 19), { ...S, trim: 10 });
     assert.equal(r.sheets, 2);
-    const r0 = optimizeMaterial([{ ...rows[0], l: 1205, w: 1200 }], M.mdf19, { ...S, trim: 10 });
+    const r0 = optimizeSheets([{ ...rows[0], l: 1205, w: 1200 }], sheetFor(S, 19), { ...S, trim: 10 });
     assert.equal(r0.sheets, 1);
 });
 
 // --- Övrigt ---
 test('CSV använder decimalkomma och semikolon', () => {
-    const col = collect([makeItem('drawer', 'L', {})], M, S);
-    const csv = buildCsv(col, M);
+    const col = collect([makeItem('drawer', 'L', {})], S);
+    const csv = buildCsv(col);
     assert.ok(csv.startsWith('﻿Nr;Antal'));
     assert.match(csv, /\d+,\d/);
 });
@@ -222,8 +228,38 @@ test('sanitizeProject filtrerar ogiltiga objekt', () => {
     assert.equal(p.items[0].params.evil, undefined);
 });
 
-test('sanitizeMaterials faller tillbaka på standard', () => {
-    assert.equal(sanitizeMaterials('x').length, DEFAULT_MATERIALS.length);
+test('tjocklekar skrivs in fritt och delar med samma tjocklek hamnar på samma skivor', () => {
+    const a = makeItem('cabinet', 'A', { carcassT: 22, backT: 0, fronts: 'none', shelves: 0 });
+    const b = makeItem('drawer', 'B', { sideT: 22, botT: 5.5 });
+    const col = collect([a, b], S);
+    assert.deepEqual([...new Set(col.rows.map(r => r.t))].sort((x, y) => y - x), [22, 5.5]);
+    const res = optimize(col.rows, S);
+    assert.equal(res.materials.length, 2);
+});
+
+test('pris per tjocklek ersätter standardpriset', () => {
+    const s = sanitizeSettings({ price: 500, prices: { '18': 700, '-1': 5, x: 3 } });
+    assert.deepEqual(s.prices, { '18': 700 });
+    assert.equal(sheetFor(s, 18).price, 700);
+    assert.equal(sheetFor(s, 16).price, 500);
+});
+
+test('ådringslås: synliga delar låses, dolda delar får roteras', () => {
+    const item = makeItem('drawer', 'L', {});
+    const col = collect([item], { ...S, grainLock: true });
+    assert.equal(col.rows.find(r => r.names.includes('Lådsida vänster')).lock, true);
+    assert.equal(col.rows.find(r => r.names.includes('Lådbotten')).lock, false);
+});
+
+test('äldre projekt med materialval översätts till tjocklekar', () => {
+    const p = sanitizeParams('cabinet', { carcassMat: 'bjork18', backMat: 'none', frontMat: 'mdf19' });
+    assert.equal(p.carcassT, 18);
+    assert.equal(p.backT, 0);
+    assert.equal(p.frontT, 19);
+});
+
+test('spillbitar kräver tjocklek', () => {
+    assert.equal(sanitizeOffcuts([{ t: 18, l: 500, w: 200 }, { mat: 'x', l: 1, w: 1 }]).length, 1);
 });
 
 test('butikslänkar kräver https-mall', () => {

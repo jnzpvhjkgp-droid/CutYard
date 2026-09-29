@@ -17,7 +17,11 @@ export const DEFAULT_SETTINGS = {
     kerf: 2.5,          // sågspalt (mm)
     edgeThick: 1.0,     // kantlistens tjocklek (mm)
     trim: 10,           // kantputs runt nya skivor (mm per sida)
-    grainLock: false,   // förbjud all rotation
+    grainLock: false,   // rotera inte synliga delar (ådring)
+    sheetL: 2440,       // skivformat (mm)
+    sheetW: 1220,
+    price: 495,         // pris per skiva (kr)
+    prices: {},         // pris per tjocklek, t.ex. { "18": 649 }
     reveal: 1.5,        // spel mellan front och stommens ytterkant (mm)
     frontGap: 3,        // spel mellan två fronter (mm)
     minOffcutL: 400,    // minsta spillbit som sparas (mm)
@@ -36,6 +40,7 @@ export function sanitizeSettings(s) {
     const out = { ...DEFAULT_SETTINGS };
     if (!isObj(s)) return out;
     for (const [k, def] of Object.entries(DEFAULT_SETTINGS)) {
+        if (k === 'prices') continue;
         if (typeof def === 'boolean') out[k] = !!s[k];
         else if (typeof def === 'number') { const v = +s[k]; if (s[k] !== '' && s[k] != null && Number.isFinite(v) && v >= 0) out[k] = v; }
         else if (typeof s[k] === 'string') out[k] = s[k];
@@ -43,6 +48,10 @@ export function sanitizeSettings(s) {
     if (!SHOPS[out.shop]) out.shop = DEFAULT_SETTINGS.shop;
     out.kerf = clamp(out.kerf, 0, 10);
     out.trim = clamp(out.trim, 0, 50);
+    if (out.sheetL < 300) out.sheetL = DEFAULT_SETTINGS.sheetL;
+    if (out.sheetW < 300) out.sheetW = DEFAULT_SETTINGS.sheetW;
+    out.prices = {};
+    if (isObj(s.prices)) for (const [k, v] of Object.entries(s.prices)) if (Number.isFinite(+k) && +k > 0 && v !== '' && v != null && Number.isFinite(+v) && +v >= 0) out.prices[thickKey(+k)] = +v;
     return out;
 }
 
@@ -53,47 +62,17 @@ export function shopUrl(settings, query) {
 }
 
 // ---------------------------------------------------------------------------
-// Materialbibliotek (exempelpriser – redigeras av användaren)
+// Skivor identifieras bara av sin tjocklek. Skivformat och pris kommer från inställningarna.
 // ---------------------------------------------------------------------------
-export const DEFAULT_MATERIALS = [
-    { id: 'melamin16', name: 'Melaminspånskiva vit', thick: 16, L: 2800, W: 2070, price: 649, grain: false, edgeable: true },
-    { id: 'bjork18', name: 'Björkplywood', thick: 18, L: 2440, W: 1220, price: 1290, grain: true, edgeable: true },
-    { id: 'bjork15', name: 'Björkplywood', thick: 15, L: 2440, W: 1220, price: 1090, grain: true, edgeable: true },
-    { id: 'mdf19', name: 'MDF', thick: 19, L: 2440, W: 1220, price: 549, grain: false, edgeable: false },
-    { id: 'mdf6', name: 'MDF', thick: 6, L: 2440, W: 1220, price: 229, grain: false, edgeable: false },
-    { id: 'hdf3', name: 'HDF vitlackad', thick: 3, L: 2440, W: 1220, price: 179, grain: false, edgeable: false },
-    { id: 'bjork4', name: 'Björkplywood', thick: 4, L: 1525, W: 1525, price: 259, grain: true, edgeable: false }
-];
+export const thickKey = t => String(round1(t));
+export const thickLabel = t => `${fmt(t)} mm`;
+export const sheetPrice = (S, t) => S.prices?.[thickKey(t)] ?? S.price;
+export const sheetFor = (S, t) => ({ t, L: S.sheetL, W: S.sheetW, price: sheetPrice(S, t) });
 
-export const materialLabel = m => m ? `${fmt(m.thick)} mm ${m.name}` : 'Okänt material';
-
-export function sanitizeMaterial(m) {
-    if (!isObj(m)) return null;
-    const num = (v, def, lo, hi) => { const n = +v; return Number.isFinite(n) ? clamp(n, lo, hi) : def; };
-    return {
-        id: typeof m.id === 'string' && m.id ? m.id.slice(0, 40) : uid('mat'),
-        name: typeof m.name === 'string' && m.name.trim() ? m.name.trim().slice(0, 60) : 'Nytt material',
-        thick: num(m.thick, 18, 1, 100),
-        L: num(m.L, 2440, 100, 6000),
-        W: num(m.W, 1220, 100, 3000),
-        price: num(m.price, 0, 0, 1e6),
-        grain: !!m.grain,
-        edgeable: !!m.edgeable
-    };
-}
-
-export function sanitizeMaterials(list) {
-    if (!Array.isArray(list)) return DEFAULT_MATERIALS.map(m => ({ ...m }));
-    const seen = new Set();
-    const out = list.map(sanitizeMaterial).filter(m => m && !seen.has(m.id) && seen.add(m.id));
-    return out.length ? out : DEFAULT_MATERIALS.map(m => ({ ...m }));
-}
-
-export function sanitizeOffcuts(list, materials) {
+export function sanitizeOffcuts(list) {
     if (!Array.isArray(list)) return [];
-    const ids = new Set(materials.map(m => m.id));
-    return list.filter(o => isObj(o) && ids.has(o.mat) && +o.l > 0 && +o.w > 0)
-        .map(o => ({ id: typeof o.id === 'string' ? o.id : uid('off'), mat: o.mat, l: round1(+o.l), w: round1(+o.w) }));
+    return list.filter(o => isObj(o) && +o.t > 0 && +o.l > 0 && +o.w > 0)
+        .map(o => ({ id: typeof o.id === 'string' ? o.id : uid('off'), t: round1(+o.t), l: round1(+o.l), w: round1(+o.w) }));
 }
 
 // ---------------------------------------------------------------------------
@@ -172,7 +151,7 @@ export function hingePositions(h, n = hingeCount(h)) {
 
 // ---------------------------------------------------------------------------
 // Byggare. Varje byggare returnerar { parts, hardware, warnings, drillings }.
-// part: { key, name, l, w, mat, grain, band:{l,w}, geo:{size,pos,role} }
+// part: { key, name, l, w, t (tjocklek), grain, band:{l,w}, geo:{size,pos,role} }
 //   grain=false: orienteringen spelar ingen roll (dolda delar) – får roteras även i ådrat material.
 //   band.l = antal kantlistade kanter som löper längs l (minskar w), band.w likadant.
 // ---------------------------------------------------------------------------
@@ -180,10 +159,8 @@ const NO_BAND = { l: 0, w: 0 };
 
 function hw(key, name, qty, unit, query) { return { key, name, qty, unit, query: query || name }; }
 
-function matOf(M, id, fallback) { return M[id] || M[fallback] || Object.values(M)[0]; }
-
-export function shakerDoorParts({ w, h, frame, tenon, frameMat, panelMat, prefix = '', origin = [0, 0, 0] }) {
-    const f = frame, tF = frameMat.thick, tP = panelMat.thick;
+export function shakerDoorParts({ w, h, frame, tenon, frameT, panelT, prefix = '', origin = [0, 0, 0] }) {
+    const f = frame, tF = frameT, tP = panelT;
     const [ox, oy, oz] = origin;
     const p = prefix ? prefix + ': ' : '';
     const warnings = [];
@@ -191,30 +168,30 @@ export function shakerDoorParts({ w, h, frame, tenon, frameMat, panelMat, prefix
     if (tP >= tF) warnings.push(`${prefix || 'Dörren'}: fyllningen är lika tjock som ramen.`);
     const railL = w - 2 * f + 2 * tenon;
     const pw = Math.max(1, w - 2 * f), ph = Math.max(1, h - 2 * f);
-    const common = { mat: frameMat.id, grain: true, band: NO_BAND };
+    const common = { t: tF, grain: true, band: NO_BAND };
     const parts = [
         { ...common, key: `${p}stileL`, name: `${p}Stile vänster`, l: h, w: f, geo: { size: [f, h, tF], pos: [ox - w / 2 + f / 2, oy, oz], role: 'frame' } },
         { ...common, key: `${p}stileR`, name: `${p}Stile höger`, l: h, w: f, geo: { size: [f, h, tF], pos: [ox + w / 2 - f / 2, oy, oz], role: 'frame' } },
         { ...common, key: `${p}railT`, name: `${p}Rail topp`, l: railL, w: f, geo: { size: [pw, f, tF], pos: [ox, oy + h / 2 - f / 2, oz], role: 'frame' } },
         { ...common, key: `${p}railB`, name: `${p}Rail botten`, l: railL, w: f, geo: { size: [pw, f, tF], pos: [ox, oy - h / 2 + f / 2, oz], role: 'frame' } },
-        { key: `${p}panel`, name: `${p}Spegelfyllning`, l: h - 2 * f + 2 * tenon - 2, w: w - 2 * f + 2 * tenon - 2, mat: panelMat.id, grain: true, band: NO_BAND,
+        { key: `${p}panel`, name: `${p}Spegelfyllning`, l: h - 2 * f + 2 * tenon - 2, w: w - 2 * f + 2 * tenon - 2, t: tP, grain: true, band: NO_BAND,
           geo: { size: [pw, ph, tP], pos: [ox, oy, oz], role: 'panel' } }
     ];
     return { parts, warnings, thick: tF };
 }
 
-function drawerBoxParts(box, { h, sideMat, botMat, prefix, origin }) {
+function drawerBoxParts(box, { h, sideT, botT, prefix, origin }) {
     const [ox, oy, oz] = origin;
-    const t = sideMat.thick, tb = botMat.thick;
+    const t = sideT, tb = botT;
     const p = prefix ? prefix + ': ' : '';
-    const common = { mat: sideMat.id, grain: true, band: NO_BAND };
+    const common = { t, grain: true, band: NO_BAND };
     const inner = Math.max(1, box.inner), len = box.len;
     return [
         { ...common, key: `${p}sideL`, name: `${p}Lådsida vänster`, l: len, w: h, geo: { size: [t, h, len], pos: [ox - box.boxW / 2 + t / 2, oy, oz], role: 'drawer' } },
         { ...common, key: `${p}sideR`, name: `${p}Lådsida höger`, l: len, w: h, geo: { size: [t, h, len], pos: [ox + box.boxW / 2 - t / 2, oy, oz], role: 'drawer' } },
         { ...common, key: `${p}front`, name: `${p}Lådstycke fram`, l: inner, w: h, geo: { size: [inner, h, t], pos: [ox, oy, oz + len / 2 - t / 2], role: 'drawer' } },
         { ...common, key: `${p}back`, name: `${p}Lådstycke bak`, l: inner, w: h, geo: { size: [inner, h, t], pos: [ox, oy, oz - len / 2 + t / 2], role: 'drawer' } },
-        { key: `${p}bottom`, name: `${p}Lådbotten`, l: box.botW, w: box.botL, mat: botMat.id, grain: false, band: NO_BAND,
+        { key: `${p}bottom`, name: `${p}Lådbotten`, l: box.botW, w: box.botL, t: tb, grain: false, band: NO_BAND,
           geo: { size: [Math.max(1, box.botW), tb, Math.max(1, box.botL)], pos: [ox, oy - h / 2 + box.bottomRecess + tb / 2, oz], role: 'bottom' } }
     ];
 }
@@ -226,18 +203,18 @@ function slideHardware(slide, nl, pairs, clr) {
 }
 
 export const DEFAULT_PARAMS = {
-    cabinet: { w: 600, h: 720, d: 560, carcassMat: 'melamin16', backMat: 'hdf3', shelves: 1, edgeBand: true,
-               fronts: 'drawers', doorCount: 'auto', drawerCount: 3, frontMat: 'mdf19', frontStyle: 'flat',
-               frame: 60, tenon: 10, panelMat: 'mdf6', slideId: 'blum-movento', clearance: 12.7,
-               drawerSideMat: 'bjork15', drawerBotMat: 'hdf3', groove: 6 },
-    drawer: { w: 564, h: 150, d: 500, sideMat: 'bjork15', botMat: 'bjork4', slideId: 'ball', clearance: 12.7, groove: 6 },
-    shaker: { w: 400, h: 800, frame: 60, tenon: 10, frameMat: 'mdf19', panelMat: 'mdf6', hinges: true }
+    // Tjocklekar i mm. backT = 0 betyder inget bakstycke.
+    cabinet: { w: 600, h: 720, d: 560, carcassT: 16, backT: 3, shelves: 1, edgeBand: true,
+               fronts: 'drawers', doorCount: 'auto', drawerCount: 3, frontT: 19, frontStyle: 'flat', frontBand: false,
+               frame: 60, tenon: 10, panelT: 6, slideId: 'blum-movento', clearance: 12.7,
+               drawerSideT: 15, drawerBotT: 4, groove: 6 },
+    drawer: { w: 564, h: 150, d: 500, sideT: 15, botT: 4, slideId: 'ball', clearance: 12.7, groove: 6 },
+    shaker: { w: 400, h: 800, frame: 60, tenon: 10, frameT: 19, panelT: 6, hinges: true }
 };
 
-export function buildCabinet(p, M, S) {
-    const carc = matOf(M, p.carcassMat, 'melamin16');
-    const back = p.backMat === 'none' ? null : matOf(M, p.backMat, 'hdf3');
-    const t = carc.thick, tB = back ? back.thick : 0;
+export function buildCabinet(p, S) {
+    const t = p.carcassT, tB = Math.max(0, p.backT);
+    const back = tB > 0;
     const { w, h, d } = p;
     const warnings = [], hardware = [], drillings = [], parts = [];
     if (w <= 2 * t + 20) warnings.push('Bredden är för liten i förhållande till stomtjockleken.');
@@ -247,7 +224,7 @@ export function buildCabinet(p, M, S) {
     const dc = Math.max(1, d - tB);   // stommens djup; bakstycket läggs på baksidan
     const zc = tB / 2;
     const band = p.edgeBand ? { l: 1, w: 0 } : NO_BAND; // framkanten löper längs l
-    const c = { mat: carc.id, grain: true, band };
+    const c = { t, grain: true, band };
     parts.push(
         { ...c, key: 'sideL', name: 'Vänster sida', l: h, w: dc, geo: { size: [t, h, dc], pos: [-w / 2 + t / 2, 0, zc], role: 'carcass' } },
         { ...c, key: 'sideR', name: 'Höger sida', l: h, w: dc, geo: { size: [t, h, dc], pos: [w / 2 - t / 2, 0, zc], role: 'carcass' } },
@@ -267,26 +244,26 @@ export function buildCabinet(p, M, S) {
         hardware.push(hw('shelfpin5', 'Hyllbärare 5 mm', shelves * 4, 'st'));
     }
     if (back) {
-        parts.push({ key: 'back', name: 'Bakstycke', l: h - 2, w: w - 2, mat: back.id, grain: false, band: NO_BAND,
+        parts.push({ key: 'back', name: 'Bakstycke', l: h - 2, w: w - 2, t: tB, grain: false, band: NO_BAND,
                      geo: { size: [w - 2, h - 2, tB], pos: [0, 0, -d / 2 + tB / 2], role: 'back' } });
         hardware.push(hw('backscrew', 'Skruv 3,0×16 för bakstycke', Math.ceil(2 * (w + h) / 150), 'st', 'skruv 3,0x16'));
     }
 
     // Fronter
     const R = S.reveal, G = S.frontGap;
-    const front = matOf(M, p.frontMat, 'mdf19');
-    const frontBand = p.edgeBand && front.edgeable ? { l: 2, w: 2 } : NO_BAND;
-    const fz = d / 2 + front.thick / 2 + 1;
+    const tF = p.frontT;
+    const frontBand = p.frontBand ? { l: 2, w: 2 } : NO_BAND;
+    const fz = d / 2 + tF / 2 + 1;
 
     const addFront = (key, name, fw, fh, x, y, grainAlongWidth) => {
         if (p.frontStyle === 'shaker') {
-            const res = shakerDoorParts({ w: fw, h: fh, frame: p.frame, tenon: p.tenon, frameMat: front, panelMat: matOf(M, p.panelMat, 'mdf6'), prefix: name, origin: [x, y, fz] });
+            const res = shakerDoorParts({ w: fw, h: fh, frame: p.frame, tenon: p.tenon, frameT: tF, panelT: p.panelT, prefix: name, origin: [x, y, fz] });
             res.parts.forEach(pt => { pt.geo.role = pt.geo.role === 'panel' ? 'frontPanel' : 'front'; });
             parts.push(...res.parts);
             warnings.push(...res.warnings);
         } else {
             const [l, ww] = grainAlongWidth ? [fw, fh] : [fh, fw];
-            parts.push({ key, name, l, w: ww, mat: front.id, grain: true, band: frontBand, geo: { size: [fw, fh, front.thick], pos: [x, y, fz], role: 'front' } });
+            parts.push({ key, name, l, w: ww, t: tF, grain: true, band: frontBand, geo: { size: [fw, fh, tF], pos: [x, y, fz], role: 'front' } });
         }
     };
 
@@ -309,19 +286,18 @@ export function buildCabinet(p, M, S) {
         const fw = w - 2 * R;
         const fh = (h - 2 * R - (n - 1) * G) / n;
         const slide = slideById(p.slideId);
-        const sideMat = matOf(M, p.drawerSideMat, 'bjork15');
-        const botMat = matOf(M, p.drawerBotMat, 'hdf3');
+        const sideT = p.drawerSideT, botT = p.drawerBotT;
         const openingH = (h - 2 * t) / n;
         const boxH = clamp(Math.floor(Math.min(fh - 40, openingH - 30) / 10) * 10, 40, 400);
         let nl = null, clr = 0;
         for (let i = 0; i < n; i++) {
             const y = h / 2 - R - fh / 2 - i * (fh + G);
             addFront(`dfront${i}`, `Lådfront ${i + 1}`, fw, fh, 0, y, true);
-            const box = drawerBox({ openingW: inner, boxH, depth: dc, sideT: sideMat.thick, botT: botMat.thick, groove: p.groove, slide, clearance: p.clearance });
+            const box = drawerBox({ openingW: inner, boxH, depth: dc, sideT, botT, groove: p.groove, slide, clearance: p.clearance });
             nl = box.nl; clr = box.clr;
             if (i === 0) warnings.push(...box.warnings);
             const by = clamp(y, -h / 2 + t + boxH / 2 + 2, h / 2 - t - boxH / 2 - 2);
-            parts.push(...drawerBoxParts(box, { h: boxH, sideMat, botMat, prefix: `Låda ${i + 1}`, origin: [0, by, zc + dc / 2 - box.len / 2 - 2] }));
+            parts.push(...drawerBoxParts(box, { h: boxH, sideT, botT, prefix: `Låda ${i + 1}`, origin: [0, by, zc + dc / 2 - box.len / 2 - 2] }));
         }
         hardware.push(slideHardware(slide, nl, n, clr));
         hardware.push(hw('handle', 'Handtag eller knopp', n, 'st', 'möbelhandtag'));
@@ -329,12 +305,10 @@ export function buildCabinet(p, M, S) {
     return { parts, hardware, warnings, drillings };
 }
 
-export function buildDrawer(p, M) {
+export function buildDrawer(p) {
     const slide = slideById(p.slideId);
-    const sideMat = matOf(M, p.sideMat, 'bjork15');
-    const botMat = matOf(M, p.botMat, 'bjork4');
-    const box = drawerBox({ openingW: p.w, boxH: p.h, depth: p.d, sideT: sideMat.thick, botT: botMat.thick, groove: p.groove, slide, clearance: p.clearance });
-    const parts = drawerBoxParts(box, { h: p.h, sideMat, botMat, prefix: '', origin: [0, 0, 0] });
+    const box = drawerBox({ openingW: p.w, boxH: p.h, depth: p.d, sideT: p.sideT, botT: p.botT, groove: p.groove, slide, clearance: p.clearance });
+    const parts = drawerBoxParts(box, { h: p.h, sideT: p.sideT, botT: p.botT, prefix: '', origin: [0, 0, 0] });
     return {
         parts,
         hardware: [slideHardware(slide, box.nl, 1, box.clr)],
@@ -344,10 +318,8 @@ export function buildDrawer(p, M) {
     };
 }
 
-export function buildShaker(p, M) {
-    const frameMat = matOf(M, p.frameMat, 'mdf19');
-    const panelMat = matOf(M, p.panelMat, 'mdf6');
-    const res = shakerDoorParts({ w: p.w, h: p.h, frame: p.frame, tenon: p.tenon, frameMat, panelMat });
+export function buildShaker(p) {
+    const res = shakerDoorParts({ w: p.w, h: p.h, frame: p.frame, tenon: p.tenon, frameT: p.frameT, panelT: p.panelT });
     const hardware = [], drillings = [];
     if (p.hinges) {
         const n = hingeCount(p.h);
@@ -368,10 +340,20 @@ export const ITEM_TYPES = {
 // ---------------------------------------------------------------------------
 // Projekt
 // ---------------------------------------------------------------------------
+// Äldre projekt valde material ur ett bibliotek. Översätt de kända standardmaterialen till tjocklekar.
+const LEGACY_THICK = { melamin16: 16, bjork18: 18, bjork15: 15, mdf19: 19, mdf6: 6, hdf3: 3, bjork4: 4 };
+const LEGACY_KEYS = { carcassMat: 'carcassT', frontMat: 'frontT', panelMat: 'panelT', drawerSideMat: 'drawerSideT', drawerBotMat: 'drawerBotT',
+                      sideMat: 'sideT', botMat: 'botT', frameMat: 'frameT' };
+
 export function sanitizeParams(type, params) {
     const def = DEFAULT_PARAMS[type];
     const out = { ...def };
     if (!isObj(params)) return out;
+    params = { ...params };
+    for (const [oldK, newK] of Object.entries(LEGACY_KEYS)) {
+        if (newK in def && !(newK in params) && LEGACY_THICK[params[oldK]]) params[newK] = LEGACY_THICK[params[oldK]];
+    }
+    if (type === 'cabinet' && !('backT' in params) && 'backMat' in params) params.backT = params.backMat === 'none' ? 0 : (LEGACY_THICK[params.backMat] ?? def.backT);
     for (const [k, v] of Object.entries(def)) {
         if (!(k in params)) continue;
         if (typeof v === 'number') { const n = +params[k]; if (params[k] !== '' && Number.isFinite(n)) out[k] = n; }
@@ -405,23 +387,23 @@ export function exampleProject() {
         name: 'Exempel: kök',
         items: [
             makeItem('cabinet', 'Bänkskåp med lådor', {}),
-            { ...makeItem('cabinet', 'Väggskåp', { w: 800, h: 700, d: 350, shelves: 2, fronts: 'doors', frontStyle: 'shaker', frontMat: 'mdf19' }), qty: 2 },
+            { ...makeItem('cabinet', 'Väggskåp', { w: 800, h: 700, d: 350, shelves: 2, fronts: 'doors', frontStyle: 'shaker' }), qty: 2 },
             makeItem('cabinet', 'Bänkskåp med dörr', { w: 400, h: 720, d: 560, shelves: 1, fronts: 'doors' })
         ]
     };
 }
 
-export function buildItem(item, M, S) {
-    return ITEM_TYPES[item.type].build(item.params, M, S);
+export function buildItem(item, S) {
+    return ITEM_TYPES[item.type].build(item.params, S);
 }
 
 /**
  * Samlar alla delar i projektet (eller ett objekt) till en grupperad, numrerad kaplista.
  */
-export function collect(items, M, S) {
+export function collect(items, S) {
     const pieces = [], hwMap = new Map(), warnings = [], drillings = [];
     for (const item of items) {
-        const res = buildItem(item, M, S);
+        const res = buildItem(item, S);
         res.warnings.forEach(w => warnings.push(`${item.name}: ${w}`));
         res.hardware.forEach(h => {
             const ex = hwMap.get(h.key);
@@ -430,26 +412,26 @@ export function collect(items, M, S) {
         res.drillings.forEach(dr => drillings.push({ ...dr, item: item.name, count: item.qty }));
         for (const part of res.parts) {
             if (item.excluded[part.key]) continue;
-            const mat = M[part.mat];
             const band = part.band || NO_BAND;
             let l = part.l - band.w * S.edgeThick;
             let w = part.w - band.l * S.edgeThick;
             const edgeLen = band.l * part.l + band.w * part.w;
-            const lock = S.grainLock || (mat.grain && part.grain !== false);
+            const lock = S.grainLock && part.grain !== false; // dolda delar får alltid roteras
             if (!lock && w > l) [l, w] = [w, l];
-            pieces.push({ name: part.name, item: item.name, mat: mat.id, l: round1(l), w: round1(w), lock, edgeLen, count: item.qty });
+            // "Låda 2: Lådsida vänster" → "Lådsida vänster" så att listan inte upprepar sig
+            pieces.push({ name: part.name.replace(/^[^:]+: /, ''), item: item.name, t: round1(part.t), l: round1(l), w: round1(w), lock, edgeLen, count: item.qty });
         }
     }
     const rows = [];
     for (const p of pieces) {
-        const ex = rows.find(r => r.mat === p.mat && r.l === p.l && r.w === p.w && r.lock === p.lock);
+        const ex = rows.find(r => r.t === p.t && r.l === p.l && r.w === p.w && r.lock === p.lock);
         if (ex) {
             ex.count += p.count; ex.edgeLen += p.edgeLen * p.count;
             if (!ex.names.includes(p.name)) ex.names.push(p.name);
             if (!ex.items.includes(p.item)) ex.items.push(p.item);
-        } else rows.push({ mat: p.mat, l: p.l, w: p.w, lock: p.lock, count: p.count, edgeLen: p.edgeLen * p.count, names: [p.name], items: [p.item] });
+        } else rows.push({ t: p.t, l: p.l, w: p.w, lock: p.lock, count: p.count, edgeLen: p.edgeLen * p.count, names: [p.name], items: [p.item] });
     }
-    rows.sort((a, b) => M[b.mat].thick - M[a.mat].thick || a.mat.localeCompare(b.mat) || b.l - a.l || b.w - a.w);
+    rows.sort((a, b) => b.t - a.t || b.l - a.l || b.w - a.w);
     rows.forEach((r, i) => { r.nr = i + 1; });
     return {
         rows,
@@ -513,7 +495,7 @@ function place(bin, spot, piece, split, kerf) {
     bin.placements.push({ x: f.x, y: f.y, dl, dw, rotated: spot.rot, piece });
 }
 
-function packRun(pieces, mat, S, offcuts, sortKey, split) {
+function packRun(pieces, sheet, S, offcuts, sortKey, split) {
     const kerf = S.kerf;
     const order = [...pieces].sort(SORTS[sortKey]);
     const bins = [];
@@ -532,7 +514,7 @@ function packRun(pieces, mat, S, offcuts, sortKey, split) {
         const oi = spare.findIndex(o => findSpot(newBin('offcut', o.l, o.w, 0, kerf), pw, ph, allowRot));
         let bin;
         if (oi >= 0) { const o = spare.splice(oi, 1)[0]; bin = newBin('offcut', o.l, o.w, 0, kerf, { offcutId: o.id }); }
-        else bin = newBin('sheet', mat.L, mat.W, S.trim, kerf);
+        else bin = newBin('sheet', sheet.L, sheet.W, S.trim, kerf);
         const spot = findSpot(bin, pw, ph, allowRot);
         if (!spot) { oversize.push(piece); continue; }
         place(bin, spot, piece, split, kerf);
@@ -541,13 +523,13 @@ function packRun(pieces, mat, S, offcuts, sortKey, split) {
     return { bins, oversize };
 }
 
-export function optimizeMaterial(rows, mat, S, offcuts = []) {
+export function optimizeSheets(rows, sheet, S, offcuts = []) {
     const pieces = [];
-    rows.forEach(r => { for (let k = 0; k < r.count; k++) pieces.push({ nr: r.nr, name: r.names[0], l: r.l, w: r.w, lock: r.lock, mat: r.mat }); });
+    rows.forEach(r => { for (let k = 0; k < r.count; k++) pieces.push({ nr: r.nr, name: r.names[0], l: r.l, w: r.w, lock: r.lock, t: r.t }); });
     let best = null;
     for (const sortKey of Object.keys(SORTS)) {
         for (const split of SPLITS) {
-            const run = packRun(pieces, mat, S, offcuts, sortKey, split);
+            const run = packRun(pieces, sheet, S, offcuts, sortKey, split);
             const sheets = run.bins.filter(b => b.kind === 'sheet');
             const lastUtil = sheets.length ? util(sheets[sheets.length - 1]) : 0;
             const score = [run.oversize.length, sheets.length, run.bins.length, lastUtil];
@@ -562,13 +544,13 @@ export function optimizeMaterial(rows, mat, S, offcuts = []) {
             .map(f => ({ x: f.x, y: f.y, l: round1(Math.floor(f.w - kerf)), w: round1(Math.floor(f.h - kerf)) }))
             .map(f => f.l >= f.w ? f : { ...f, l: f.w, w: f.l, swapped: true })
             .filter(f => f.l >= S.minOffcutL && f.w >= S.minOffcutW);
-        b.leftovers.forEach(f => newOffcuts.push({ mat: mat.id, l: f.l, w: f.w }));
+        b.leftovers.forEach(f => newOffcuts.push({ t: sheet.t, l: f.l, w: f.w }));
     });
     const sheets = best.bins.filter(b => b.kind === 'sheet').length;
     return {
-        mat, bins: best.bins, oversize: best.oversize, sheets,
+        sheet, bins: best.bins, oversize: best.oversize, sheets,
         offcutsUsed: best.bins.filter(b => b.kind === 'offcut').map(b => b.offcutId),
-        newOffcuts, cost: sheets * mat.price
+        newOffcuts, cost: sheets * sheet.price
     };
 }
 
@@ -580,10 +562,13 @@ function better(a, b) {
     return a[3] < b[3];
 }
 
-export function optimize(rows, M, S, offcuts = []) {
+export function optimize(rows, S, offcuts = []) {
     const byMat = {};
-    rows.forEach(r => { (byMat[r.mat] = byMat[r.mat] || []).push(r); });
-    const results = Object.entries(byMat).map(([id, list]) => optimizeMaterial(list, M[id], S, offcuts.filter(o => o.mat === id)));
+    rows.forEach(r => { (byMat[thickKey(r.t)] = byMat[thickKey(r.t)] || []).push(r); });
+    const results = Object.values(byMat).map(list => {
+        const t = list[0].t;
+        return optimizeSheets(list, sheetFor(S, t), S, offcuts.filter(o => thickKey(o.t) === thickKey(t)));
+    });
     const sheetArea = results.reduce((a, r) => a + r.bins.filter(b => b.kind === 'sheet').reduce((s, b) => s + b.L * b.W, 0), 0);
     const usedArea = results.reduce((a, r) => a + r.bins.filter(b => b.kind === 'sheet').reduce((s, b) => s + b.util * b.L * b.W, 0), 0);
     return {
@@ -599,12 +584,12 @@ export function optimize(rows, M, S, offcuts = []) {
 // ---------------------------------------------------------------------------
 // Export
 // ---------------------------------------------------------------------------
-export function buildCsv(col, M, { sep = ';', bom = true } = {}) {
+export function buildCsv(col, { sep = ';', bom = true } = {}) {
     const n = x => String(round1(x)).replace('.', ',');
     const q = s => `"${String(s).replace(/"/g, '""')}"`;
     const L = [];
-    L.push(['Nr', 'Antal', 'Längd (mm)', 'Bredd (mm)', 'Material', 'Komponent', 'Objekt', 'Ådring låst', 'Kantlist (m)'].join(sep));
-    col.rows.forEach(r => L.push([r.nr, r.count, n(r.l), n(r.w), q(materialLabel(M[r.mat])), q(r.names.join(', ')), q(r.items.join(', ')), r.lock ? 'Ja' : 'Nej', n(r.edgeLen / 1000)].join(sep)));
+    L.push(['Nr', 'Antal', 'Längd (mm)', 'Bredd (mm)', 'Tjocklek (mm)', 'Komponent', 'Objekt', 'Ådring låst', 'Kantlist (m)'].join(sep));
+    col.rows.forEach(r => L.push([r.nr, r.count, n(r.l), n(r.w), n(r.t), q(r.names.join(', ')), q(r.items.join(', ')), r.lock ? 'Ja' : 'Nej', n(r.edgeLen / 1000)].join(sep)));
     if (col.hardware.length) {
         L.push('', 'BESLAGSLISTA', ['Produkt', 'Antal', 'Enhet'].join(sep));
         col.hardware.forEach(h => L.push([q(h.name), h.qty, q(h.unit)].join(sep)));
@@ -612,6 +597,6 @@ export function buildCsv(col, M, { sep = ';', bom = true } = {}) {
     return (bom ? '﻿' : '') + L.join('\n') + '\n';
 }
 
-export function labelText(row, M) {
-    return `CutYard #${row.nr} | ${fmt(row.l)}x${fmt(row.w)} mm | ${materialLabel(M[row.mat])} | ${row.names.join(', ')}`;
+export function labelText(row) {
+    return `CutYard #${row.nr} | ${fmt(row.l)}x${fmt(row.w)}x${fmt(row.t)} mm | ${row.names.join(', ')}`;
 }

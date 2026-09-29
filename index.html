@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>CutYard PRO</title>
     <meta name="description" content="Kaplistor, skivoptimering, borrschema och beslagslistor för skåp, lådor och shaker-dörrar.">
-    <meta name="theme-color" content="#030712">
+    <meta name="theme-color" content="#0b0f15">
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="assets/icon-192.png">
@@ -15,294 +15,264 @@
     <script src="vendor/OrbitControls.js" defer></script>
     <script type="module" src="src/app.js"></script>
 </head>
-<body class="font-sans min-h-screen flex flex-col selection:bg-blue-500/30 selection:text-blue-200">
+<body class="font-sans min-h-screen flex flex-col">
 
-    <!-- ANNONS -->
-    <div class="bg-[#030712] border-b border-white/5 py-2 px-4 text-center">
-        <div class="max-w-7xl mx-auto flex justify-center">
-            <div class="bg-white/5 border border-white/10 rounded-full px-4 py-1.5 text-[11px] font-medium text-gray-400 flex flex-wrap justify-center items-center gap-x-3 gap-y-1">
-                <span class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold px-2 py-0.5 rounded-full text-[9px] uppercase tracking-wider">Annons</span>
-                <span>Vill du nå ut till hantverkare och snickare? <a href="#" class="text-blue-400 hover:text-blue-300">Annonsera på CutYard →</a></span>
+    <!-- Sidhuvud: logga, projektnamn, projektåtgärder -->
+    <header class="sticky z-40 border-b" style="top: env(safe-area-inset-top, 0px); background: var(--bg); border-color: var(--line);">
+        <div class="max-w-[1400px] mx-auto px-4 sm:px-6 h-14 flex items-center gap-3">
+            <div class="flex items-center gap-2 shrink-0">
+                <img src="assets/icon.svg" alt="" class="w-7 h-7">
+                <span class="font-semibold tracking-tight hidden sm:inline">CutYard</span>
             </div>
-        </div>
-    </div>
-
-    <header class="bg-gray-900/70 backdrop-blur-xl border-b border-white/5 sticky z-40 shadow-lg shadow-black/20" style="top: env(safe-area-inset-top, 0px);">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center h-16 gap-3">
-            <div class="flex items-center min-w-0">
-                <div class="bg-gradient-to-br from-blue-500 to-indigo-600 p-1.5 rounded-lg mr-3 shadow-lg shadow-blue-500/20 shrink-0">
-                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5"></path></svg>
-                </div>
-                <h1 class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400 tracking-tight">CutYard<span class="text-blue-500 text-xs ml-1 font-mono font-normal">PRO</span></h1>
-                <span id="offlineBadge" class="ml-3 text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-amber-900/30 border border-amber-500/30 rounded-full px-2 py-0.5" hidden>Offline</span>
-            </div>
-            <nav class="flex items-center gap-1.5 sm:gap-2" aria-label="Projekt">
-                <input type="file" id="fileUpload" accept=".cutyard,application/json" class="hidden">
-                <button id="btnNew" type="button" class="btn-ghost !px-2.5 sm:!px-3" title="Nytt projekt"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg><span class="hidden md:inline">Nytt</span></button>
-                <button id="btnLoadProject" type="button" class="btn-ghost !px-2.5 sm:!px-3" title="Öppna projekt (.cutyard)"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"></path></svg><span class="hidden md:inline">Öppna</span></button>
-                <button id="btnSaveProject" type="button" class="btn-ghost !px-2.5 sm:!px-3" title="Spara projekt (.cutyard)"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg><span class="hidden md:inline">Spara</span></button>
-                <div class="w-px h-6 bg-white/10 mx-0.5"></div>
-                <button id="btnMaterials" type="button" class="btn-ghost !px-2.5 sm:!px-3" title="Material och spillbitar"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg><span class="hidden md:inline">Material</span></button>
-                <button id="btnSettings" type="button" class="btn-ghost !px-2.5" title="Inställningar" aria-label="Inställningar"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg></button>
+            <span class="faint hidden sm:inline">/</span>
+            <label for="projectName" class="sr-only">Projektnamn</label>
+            <input id="projectName" type="text" maxlength="80" autocomplete="off" class="min-w-0 flex-1 max-w-sm bg-transparent rounded-md px-2 py-1 font-medium hover:bg-[var(--surface-2)] focus:bg-[var(--surface-2)] focus:outline-none" title="Byt namn på projektet">
+            <span id="offlineBadge" class="text-[11px] font-medium rounded-full px-2 py-0.5" style="color: var(--warn); background: rgba(240,180,76,0.1);" hidden>Offline</span>
+            <nav class="ml-auto flex items-center gap-0.5" aria-label="Projekt">
+                <input type="file" id="fileUpload" accept=".cutyard,.json,application/json" class="hidden">
+                <button id="btnNew" type="button" class="btn-quiet" title="Nytt projekt"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/></svg><span class="hidden md:inline">Nytt</span></button>
+                <button id="btnLoadProject" type="button" class="btn-quiet" title="Öppna projektfil"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/></svg><span class="hidden md:inline">Öppna</span></button>
+                <button id="btnSaveProject" type="button" class="btn-quiet" title="Spara projektfil"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v11m0 0l-4-4m4 4l4-4M5 19h14"/></svg><span class="hidden md:inline">Spara</span></button>
+                <button id="btnSettings" type="button" class="btn-quiet" title="Inställningar" aria-label="Inställningar"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg><span class="hidden md:inline">Inställningar</span></button>
             </nav>
         </div>
     </header>
 
-    <main class="max-w-7xl mx-auto w-full px-4 py-6 sm:px-6 lg:px-8 lg:py-8 flex-1 flex flex-col gap-6">
+    <main class="max-w-[1400px] mx-auto w-full px-4 sm:px-6 py-5 lg:py-6 flex-1 flex flex-col gap-5">
 
-        <!-- PROJEKT -->
-        <section class="panel p-4 sm:p-5 flex flex-col gap-4" aria-labelledby="projectLabel">
-            <div class="flex flex-wrap items-end gap-3 justify-between">
-                <div class="min-w-0 flex-1 max-w-md">
-                    <label id="projectLabel" class="fld-label" for="projectName">Projekt</label>
-                    <input id="projectName" type="text" class="fld fld-text text-base font-semibold" maxlength="80" autocomplete="off">
+        <!-- Arbetsyta -->
+        <div class="grid gap-5 lg:grid-cols-[220px_minmax(320px,380px)_1fr] items-start">
+
+            <!-- Objekt i projektet -->
+            <aside class="min-w-0" aria-labelledby="itemsTitle">
+                <div class="flex items-center justify-between mb-2 px-1">
+                    <h2 id="itemsTitle" class="eyebrow">Objekt</h2>
+                    <span id="itemCount" class="text-[12px] faint num"></span>
                 </div>
-                <div class="flex flex-wrap gap-2">
-                    <button type="button" class="btn-ghost" data-add="cabinet"><span class="text-blue-400 font-bold">+</span> Skåp</button>
-                    <button type="button" class="btn-ghost" data-add="drawer"><span class="text-purple-400 font-bold">+</span> Lådor</button>
-                    <button type="button" class="btn-ghost" data-add="shaker"><span class="text-emerald-400 font-bold">+</span> Shaker-dörr</button>
+                <ul id="itemList" class="flex lg:flex-col gap-1 overflow-x-auto no-scrollbar lg:overflow-visible" role="tablist" aria-label="Objekt i projektet"></ul>
+                <div class="mt-3 pt-3 border-t flex lg:flex-col gap-0.5" style="border-color: var(--line);">
+                    <span class="px-1 pb-1 text-[12px] faint hidden lg:block">Lägg till</span>
+                    <button type="button" class="btn-quiet justify-start" data-add="cabinet">+ Skåp</button>
+                    <button type="button" class="btn-quiet justify-start" data-add="drawer">+ Lådor</button>
+                    <button type="button" class="btn-quiet justify-start" data-add="shaker">+ Shaker-dörr</button>
                 </div>
-            </div>
-            <div id="itemChips" class="flex gap-2 overflow-x-auto no-scrollbar pb-1" role="tablist" aria-label="Objekt i projektet"></div>
-        </section>
+            </aside>
 
-        <!-- EDITOR -->
-        <section id="emptyState" class="panel p-8 sm:p-12 text-center" hidden>
-            <h2 class="text-xl font-semibold text-white">Projektet är tomt</h2>
-            <p class="text-sm text-gray-400 mt-2 mb-6">Lägg till ett skåp, lådor eller en shaker-dörr för att få en kaplista.</p>
-            <div class="flex flex-wrap justify-center gap-2">
-                <button type="button" class="btn-ghost" data-add="cabinet"><span class="text-blue-400 font-bold">+</span> Skåp</button>
-                <button type="button" class="btn-ghost" data-add="drawer"><span class="text-purple-400 font-bold">+</span> Lådor</button>
-                <button type="button" class="btn-ghost" data-add="shaker"><span class="text-emerald-400 font-bold">+</span> Shaker-dörr</button>
-            </div>
-        </section>
+            <!-- Tomt projekt -->
+            <section id="emptyState" class="card p-10 text-center lg:col-span-2" hidden>
+                <h2 class="text-lg font-semibold">Projektet är tomt</h2>
+                <p class="muted mt-1">Lägg till ett skåp, lådor eller en shaker-dörr i listan till vänster.</p>
+            </section>
 
-        <section id="editorSection" class="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8" aria-label="Redigera objekt">
-            <div id="editorPanel" class="lg:col-span-5 panel p-5 sm:p-7 h-fit relative overflow-hidden min-w-0">
-                <div id="editorBar" class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-600 to-transparent"></div>
-                <div class="flex items-start gap-3 mb-5">
+            <!-- Formulär -->
+            <section id="editorPanel" class="card min-w-0" aria-label="Redigera objekt">
+                <div class="p-4 border-b flex items-end gap-3" style="border-color: var(--line);">
                     <div class="flex-1 min-w-0">
-                        <label class="fld-label" for="itemName">Namn</label>
-                        <input id="itemName" type="text" class="fld fld-text font-semibold" maxlength="60" autocomplete="off">
+                        <label class="lbl" for="itemName"><span id="itemType"></span></label>
+                        <input id="itemName" type="text" class="fld font-medium" maxlength="60" autocomplete="off">
                     </div>
-                    <div class="w-20">
-                        <label class="fld-label" for="itemQty">Antal</label>
-                        <input id="itemQty" type="number" min="1" max="999" inputmode="numeric" class="fld font-bold" style="color: var(--accent)">
-                    </div>
-                </div>
-                <div id="itemType" class="text-[11px] font-bold uppercase tracking-widest mb-4" style="color: var(--accent)"></div>
-                <form id="itemForm" class="space-y-5" novalidate></form>
-                <div id="excludedNote" class="mt-5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-red-300 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2" hidden>
-                    <span id="excludedText"></span>
-                    <button id="btnRestoreParts" type="button" class="font-semibold text-white underline underline-offset-2 hover:text-red-200">Ta med alla igen</button>
-                </div>
-                <div id="itemInfo" class="mt-5 text-xs text-gray-400 num" hidden></div>
-                <div id="itemWarn" class="warn-box mt-5" hidden></div>
-                <div class="flex flex-wrap gap-2 justify-between pt-5 mt-6 border-t border-white/5">
-                    <div class="flex gap-2">
-                        <button id="btnDuplicate" type="button" class="btn-ghost">Duplicera</button>
-                        <button id="btnDelete" type="button" class="btn-danger">Ta bort</button>
-                    </div>
-                    <button id="btnShowResults" type="button" class="btn-primary">Visa kaplista</button>
-                </div>
-            </div>
-            <div class="lg:col-span-7 panel p-3 h-[360px] sm:h-[520px] flex flex-col relative min-w-0 lg:sticky lg:top-24">
-                <div class="absolute top-5 left-5 z-10 flex items-center bg-black/50 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-lg pointer-events-none">
-                    <div class="w-2 h-2 rounded-full bg-red-500 animate-pulse mr-2"></div>
-                    <span class="text-xs font-mono text-gray-300">Live 3D-vy</span>
-                </div>
-                <label class="absolute top-5 right-5 z-10 flex items-center gap-2 bg-black/50 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-lg text-xs text-gray-300 cursor-pointer">
-                    <span class="check-wrap"><input id="showFronts" type="checkbox" class="check !w-4 !h-4" checked><svg class="check-mark !w-2.5 !h-2.5" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path></svg></span>
-                    Visa fronter
-                </label>
-                <div id="viewer3D" class="viewer flex-1 w-full overflow-hidden cursor-grab active:cursor-grabbing relative border border-white/5 rounded-xl"></div>
-                <p class="absolute bottom-5 left-5 right-5 z-10 text-[11px] text-gray-500 pointer-events-none">Dra för att rotera · Scrolla för att zooma · Klicka på en del för att ta bort den ur kaplistan</p>
-            </div>
-        </section>
-
-        <!-- RESULTAT -->
-        <section id="resultSection" class="panel !bg-gray-900/60 p-5 sm:p-8 flex flex-col relative scroll-mt-24" aria-labelledby="resTitle">
-            <div class="flex flex-col md:flex-row justify-between items-start md:items-end border-b border-white/10 pb-6 mb-6 gap-4">
-                <div class="min-w-0">
-                    <h2 id="resTitle" class="text-2xl sm:text-3xl font-bold text-white tracking-tight">Kalkyl & optimering</h2>
-                    <div class="mt-3 inline-flex bg-black/40 border border-white/10 rounded-lg p-1" role="group" aria-label="Omfattning">
-                        <button type="button" class="seg seg-on" data-scope="project">Hela projektet</button>
-                        <button type="button" class="seg" data-scope="item">Bara <span id="scopeItemName">objektet</span></button>
+                    <div class="w-24">
+                        <label class="lbl" for="itemQty">Antal</label>
+                        <div class="fld-unit"><input id="itemQty" type="number" min="1" max="999" inputmode="numeric" class="fld"><span class="unit">st</span></div>
                     </div>
                 </div>
-                <div class="flex flex-wrap gap-2">
-                    <button id="btnCopyCsv" type="button" class="btn-ghost">Kopiera lista</button>
-                    <button id="btnExportCsv" type="button" class="btn-ghost">Exportera CSV</button>
-                    <div class="flex items-stretch rounded-lg overflow-hidden border border-blue-400/30">
-                        <button id="btnPrint" type="button" class="btn-primary !rounded-none !border-0">Skriv ut / PDF</button>
-                        <label class="flex items-center gap-2 px-3 bg-blue-900/30 text-xs text-blue-100 cursor-pointer" title="Lägg till etiketter med QR-kod, en per del">
-                            <span class="check-wrap"><input id="printLabels" type="checkbox" class="check !w-4 !h-4" checked><svg class="check-mark !w-2.5 !h-2.5" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path></svg></span>
-                            Etiketter
-                        </label>
+                <form id="itemForm" class="p-4 space-y-5" novalidate></form>
+                <div class="px-4 pb-4 space-y-3 empty:hidden" id="itemNotes">
+                    <div id="itemInfo" class="text-[12px] muted num" hidden></div>
+                    <div id="excludedNote" class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] rounded-lg px-3 py-2" style="color: var(--danger); background: rgba(239,107,107,0.08);" hidden>
+                        <span id="excludedText"></span>
+                        <button id="btnRestoreParts" type="button" class="font-medium underline underline-offset-2" style="color: var(--fg);">Ta med alla igen</button>
+                    </div>
+                    <div id="itemWarn" class="note-warn" hidden></div>
+                </div>
+                <div class="px-4 py-3 border-t flex items-center gap-1" style="border-color: var(--line);">
+                    <button id="btnDuplicate" type="button" class="btn-quiet">Duplicera</button>
+                    <button id="btnDelete" type="button" class="btn-danger">Ta bort</button>
+                </div>
+            </section>
+
+            <!-- 3D -->
+            <section id="viewerPanel" class="card overflow-hidden min-w-0 lg:sticky lg:top-20" aria-label="3D-vy">
+                <div class="flex items-center justify-between gap-3 px-4 h-11 border-b" style="border-color: var(--line);">
+                    <span class="text-[12px] muted">Klicka på en del för att ta bort den ur kaplistan</span>
+                    <label class="flex items-center gap-2 text-[12px] muted cursor-pointer shrink-0">
+                        <span class="check-wrap"><input id="showFronts" type="checkbox" class="check" checked><svg class="check-mark" fill="none" stroke="currentColor" stroke-width="3.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></span>
+                        Fronter
+                    </label>
+                </div>
+                <div id="viewer3D" class="viewer h-[320px] sm:h-[440px] lg:h-[520px] cursor-grab active:cursor-grabbing"></div>
+            </section>
+        </div>
+
+        <!-- Resultat -->
+        <section id="resultSection" class="card min-w-0 scroll-mt-20" aria-labelledby="resTitle">
+            <div class="px-4 sm:px-5 pt-4 flex flex-wrap items-center gap-x-6 gap-y-3">
+                <h2 id="resTitle" class="text-base font-semibold">Resultat</h2>
+                <div class="inline-flex rounded-lg p-0.5" style="background: var(--bg);" role="group" aria-label="Omfattning">
+                    <button type="button" class="seg is-on" data-scope="project">Hela projektet</button>
+                    <button type="button" class="seg" data-scope="item">Bara <span id="scopeItemName">objektet</span></button>
+                </div>
+                <div class="ml-auto flex flex-wrap gap-1">
+                    <button id="btnCopyCsv" type="button" class="btn-quiet">Kopiera</button>
+                    <button id="btnExportCsv" type="button" class="btn-quiet">CSV</button>
+                    <button id="btnPrint" type="button" class="btn-line">Skriv ut</button>
+                </div>
+            </div>
+
+            <!-- Sammanfattning -->
+            <dl id="summary" class="px-4 sm:px-5 pt-4 grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div><dt class="text-[12px] muted">Delar</dt><dd id="statParts" class="num text-xl mt-0.5">0</dd></div>
+                <div><dt class="text-[12px] muted">Skivor</dt><dd class="mt-0.5"><span id="statSheets" class="num text-xl">0</span> <span id="statUtil" class="text-[12px] muted num"></span></dd></div>
+                <div><dt class="text-[12px] muted">Kantlist <span class="faint">(+10 %)</span></dt><dd id="statEdge" class="num text-xl mt-0.5">–</dd></div>
+                <div><dt class="text-[12px] muted">Skivkostnad</dt><dd id="statCost" class="num text-xl mt-0.5">0 kr</dd></div>
+            </dl>
+
+            <div id="resWarn" class="note-warn mx-4 sm:mx-5 mt-4" hidden></div>
+
+            <div class="px-4 sm:px-5 mt-4 border-b flex gap-5 overflow-x-auto no-scrollbar" style="border-color: var(--line);" role="tablist" aria-label="Resultat">
+                <button type="button" role="tab" class="tab is-on" data-tab="list">Kaplista</button>
+                <button type="button" role="tab" class="tab" data-tab="sheets">Skärscheman</button>
+                <button type="button" role="tab" class="tab" data-tab="hardware">Beslag</button>
+                <button type="button" role="tab" class="tab" data-tab="drill">Borrschema</button>
+            </div>
+
+            <div class="p-4 sm:p-5">
+                <div data-panel="list" role="tabpanel">
+                    <div id="resList" class="overflow-x-auto"></div>
+                </div>
+
+                <div data-panel="sheets" role="tabpanel" hidden>
+                    <div class="flex flex-wrap items-center gap-x-4 gap-y-2 mb-4 text-[12px] muted">
+                        <span>Alla snitt går rakt igenom skivan. Streckade ytor är spillbitar värda att spara.</span>
+                        <span class="ml-auto flex items-center gap-1">
+                            <span id="offcutCount" class="num"></span>
+                            <button id="btnOffcuts" type="button" class="btn-quiet !py-1">Spillager</button>
+                            <button id="btnSaveOffcuts" type="button" class="btn-line !py-1" hidden></button>
+                        </span>
+                    </div>
+                    <div id="resOpt" class="space-y-8"></div>
+                </div>
+
+                <div data-panel="hardware" role="tabpanel" hidden>
+                    <div id="hardwareEmpty" class="muted text-[13px]" hidden>Inga beslag i det här urvalet.</div>
+                    <div id="hardwareBody">
+                        <div class="overflow-x-auto"><table class="tbl">
+                            <thead><tr><th>Produkt</th><th class="!text-right">Antal</th><th>Enhet</th><th class="!text-right"></th></tr></thead>
+                            <tbody id="resHardwareList"></tbody>
+                        </table></div>
+                        <div class="mt-4 flex flex-wrap items-center gap-3">
+                            <button id="btnBuyAll" type="button" class="btn-line">Kopiera inköpslista</button>
+                            <span id="shopNote" class="text-[12px] faint"></span>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <div id="resWarn" class="warn-box mb-6" hidden></div>
-
-            <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-10">
-                <div class="bg-black/40 rounded-xl p-4 sm:p-5 border border-white/5 min-w-0">
-                    <span class="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">Delar</span>
-                    <span id="statParts" class="num text-3xl sm:text-4xl font-light text-white">0</span>
-                </div>
-                <div class="bg-black/40 rounded-xl p-4 sm:p-5 border border-white/5 min-w-0">
-                    <span class="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">Kantlist</span>
-                    <span id="statEdge" class="num text-3xl sm:text-4xl font-light text-white">–</span>
-                    <span class="block text-[11px] text-gray-500 mt-1">inkl. 10 % spill</span>
-                </div>
-                <div class="bg-black/40 rounded-xl p-4 sm:p-5 border border-white/5 min-w-0">
-                    <span class="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">Skivor</span>
-                    <span id="statSheets" class="num text-3xl sm:text-4xl font-light text-white">0</span>
-                    <span id="statUtil" class="block text-[11px] text-gray-500 mt-1 num"></span>
-                </div>
-                <div class="bg-gradient-to-br from-blue-900/20 to-indigo-900/20 rounded-xl p-4 sm:p-5 border border-blue-500/20 min-w-0">
-                    <span class="block text-[10px] font-bold text-blue-400 uppercase tracking-widest mb-2">Skivkostnad</span>
-                    <span id="statCost" class="num text-3xl sm:text-4xl font-light text-blue-100">0 kr</span>
-                    <span id="statOffcuts" class="block text-[11px] text-blue-300/70 mt-1"></span>
-                </div>
-            </div>
-
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                <div class="min-w-0">
-                    <h3 class="text-sm font-bold uppercase tracking-widest mb-5 text-gray-300">Kaplista</h3>
-                    <div id="resList" class="space-y-4 lg:max-h-[720px] overflow-y-auto lg:pr-3"></div>
-                </div>
-                <div class="min-w-0 lg:pl-6 lg:border-l lg:border-white/5">
-                    <h3 class="text-sm font-bold uppercase tracking-widest mb-2 text-gray-300 flex flex-wrap gap-2 justify-between items-center">
-                        <span>Skärscheman</span>
-                        <button id="btnSaveOffcuts" type="button" class="btn-ghost !py-1 !px-3 !text-xs normal-case tracking-normal" hidden>Spara spillbitar</button>
-                    </h3>
-                    <p class="text-xs text-gray-500 mb-5">Alla snitt går rakt igenom skivan (giljotinsnitt). Streckade ytor är spillbitar som är stora nog att spara.</p>
-                    <div id="resOpt" class="space-y-6 lg:max-h-[720px] overflow-y-auto lg:pr-3"></div>
-                </div>
-            </div>
-
-            <div id="resHardwareSection" class="mt-10 border-t border-white/10 pt-8" hidden>
-                <div class="flex flex-wrap gap-3 justify-between items-center mb-5">
-                    <h3 class="text-sm font-bold uppercase tracking-widest text-gray-300">Beslagslista</h3>
-                    <button id="btnBuyAll" type="button" class="btn-ghost !py-1.5 !text-xs">Kopiera inköpslista</button>
-                </div>
-                <div class="bg-black/40 rounded-xl border border-white/5 overflow-x-auto">
-                    <table class="tbl w-full text-sm text-gray-300">
-                        <thead class="bg-white/[0.03]"><tr><th>Produkt</th><th class="text-center">Antal</th><th>Enhet</th><th class="text-right">Köp</th></tr></thead>
-                        <tbody id="resHardwareList"></tbody>
-                    </table>
-                </div>
-                <p id="shopNote" class="text-[11px] text-gray-500 mt-2"></p>
-            </div>
-
-            <div id="resDrillSection" class="mt-10 border-t border-white/10 pt-8" hidden>
-                <h3 class="text-sm font-bold uppercase tracking-widest mb-2 text-gray-300">Borrschema gångjärn</h3>
-                <p class="text-xs text-gray-500 mb-5 num">Kopphål Ø35 × 13 mm, centrum 22,5 mm från dörrkanten. Mått räknas från dörrens överkant.</p>
-                <div class="bg-black/40 rounded-xl border border-white/5 overflow-x-auto">
-                    <table class="tbl w-full text-sm text-gray-300">
-                        <thead class="bg-white/[0.03]"><tr><th>Objekt</th><th>Dörr</th><th class="text-center">Antal</th><th>Dörrmått (mm)</th><th>Gångjärnssida</th><th>Hål från överkant (mm)</th></tr></thead>
-                        <tbody id="resDrillList"></tbody>
-                    </table>
+                <div data-panel="drill" role="tabpanel" hidden>
+                    <div id="drillEmpty" class="muted text-[13px]" hidden>Inga dörrar med gångjärn i det här urvalet.</div>
+                    <div id="drillBody">
+                        <p class="text-[12px] muted mb-3 num">Kopphål Ø35 × 13 mm, centrum 22,5 mm från dörrkanten. Hålens mått räknas från dörrens överkant.</p>
+                        <div class="overflow-x-auto"><table class="tbl">
+                            <thead><tr><th>Objekt</th><th>Dörr</th><th class="!text-right">Antal</th><th>Dörrmått</th><th>Gångjärnssida</th><th>Hål från överkant</th></tr></thead>
+                            <tbody id="resDrillList"></tbody>
+                        </table></div>
+                    </div>
                 </div>
             </div>
         </section>
     </main>
 
-    <footer class="bg-[#030712] border-t border-white/5 py-8 px-4 mt-auto">
-        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4 text-xs text-gray-600 font-medium">
-            <p>&copy; <span id="year"></span> CutYard PRO. Beslagsmått är riktvärden – kontrollera mot tillverkarens anvisning.</p>
-            <div class="flex items-center gap-4">
-                <span class="uppercase tracking-widest text-[10px]">Sponsorer</span>
-                <span class="bg-white/5 border border-white/5 px-3 py-1.5 rounded-md text-gray-500 font-mono">Din logga här</span>
-            </div>
+    <footer class="border-t mt-6" style="border-color: var(--line);">
+        <div class="max-w-[1400px] mx-auto px-4 sm:px-6 py-5 flex flex-col sm:flex-row gap-2 justify-between text-[12px] faint">
+            <p>© <span id="year"></span> CutYard PRO · Beslagsmått är riktvärden, kontrollera mot tillverkarens anvisning.</p>
+            <p><a href="#" class="hover:underline">Annonsera på CutYard</a></p>
         </div>
     </footer>
 
     <!-- Inställningar -->
-    <div id="modalSettings" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-50 p-4" hidden>
-        <div class="bg-gray-900/95 rounded-2xl w-full max-w-lg max-h-full overflow-y-auto shadow-2xl border border-white/10 p-6 sm:p-8 space-y-5" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
-            <h3 id="settingsTitle" class="text-xl font-bold text-white border-b border-white/10 pb-4">Inställningar</h3>
-            <div class="grid grid-cols-2 gap-4">
-                <div><label class="fld-label" for="setKerf">Sågspalt (mm)</label><input type="number" id="setKerf" min="0" step="0.1" class="fld"></div>
-                <div><label class="fld-label" for="setTrim">Kantputs/sida (mm)</label><input type="number" id="setTrim" min="0" step="1" class="fld"></div>
-                <div><label class="fld-label" for="setEdgeThick">Kantlist (mm)</label><input type="number" id="setEdgeThick" min="0" step="0.1" class="fld"></div>
-                <div><label class="fld-label" for="setReveal">Frontspel mot kant (mm)</label><input type="number" id="setReveal" min="0" step="0.5" class="fld"></div>
-                <div><label class="fld-label" for="setFrontGap">Spel mellan fronter (mm)</label><input type="number" id="setFrontGap" min="0" step="0.5" class="fld"></div>
-                <div></div>
-                <div><label class="fld-label" for="setMinOffcutL">Minsta spillbit, längd</label><input type="number" id="setMinOffcutL" min="0" class="fld"></div>
-                <div><label class="fld-label" for="setMinOffcutW">Minsta spillbit, bredd</label><input type="number" id="setMinOffcutW" min="0" class="fld"></div>
+    <div id="modalSettings" class="fixed inset-0 bg-black/60 flex justify-center items-center z-50 p-4" hidden>
+        <div class="card w-full max-w-lg max-h-full overflow-y-auto shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+            <h3 id="settingsTitle" class="text-base font-semibold px-5 pt-5">Inställningar</h3>
+            <div class="p-5 space-y-6">
+                <fieldset class="field-group grid-cols-3">
+                    <legend class="group-title mb-3">Skivor</legend>
+                    <div><label class="lbl" for="setSheetL">Längd</label><div class="fld-unit"><input type="number" id="setSheetL" min="300" class="fld"><span class="unit">mm</span></div></div>
+                    <div><label class="lbl" for="setSheetW">Bredd</label><div class="fld-unit"><input type="number" id="setSheetW" min="300" class="fld"><span class="unit">mm</span></div></div>
+                    <div><label class="lbl" for="setPrice">Pris</label><div class="fld-unit"><input type="number" id="setPrice" min="0" class="fld"><span class="unit">kr</span></div></div>
+                    <p class="col-span-3 text-[12px] faint -mt-1">Priset gäller alla tjocklekar. Du kan ange ett eget pris per tjocklek under Skärscheman.</p>
+                </fieldset>
+                <fieldset class="field-group grid-cols-3">
+                    <legend class="group-title mb-3">Sågning</legend>
+                    <div><label class="lbl" for="setKerf">Sågspalt</label><div class="fld-unit"><input type="number" id="setKerf" min="0" step="0.1" class="fld"><span class="unit">mm</span></div></div>
+                    <div><label class="lbl" for="setTrim">Kantputs</label><div class="fld-unit"><input type="number" id="setTrim" min="0" class="fld"><span class="unit">mm</span></div></div>
+                    <div><label class="lbl" for="setEdgeThick">Kantlist</label><div class="fld-unit"><input type="number" id="setEdgeThick" min="0" step="0.1" class="fld"><span class="unit">mm</span></div></div>
+                    <label class="col-span-3 flex items-start gap-3 cursor-pointer pt-1">
+                        <span class="check-wrap mt-0.5"><input type="checkbox" id="setGrainLock" class="check"><svg class="check-mark" fill="none" stroke="currentColor" stroke-width="3.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></span>
+                        <span><span class="block">Rotera inte synliga delar</span><span class="block text-[12px] faint mt-0.5">För skivor med ådring. Dolda delar som lådbottnar roteras ändå.</span></span>
+                    </label>
+                </fieldset>
+                <fieldset class="field-group grid-cols-2">
+                    <legend class="group-title mb-3">Fronter</legend>
+                    <div><label class="lbl" for="setReveal">Spel mot stommens kant</label><div class="fld-unit"><input type="number" id="setReveal" min="0" step="0.5" class="fld"><span class="unit">mm</span></div></div>
+                    <div><label class="lbl" for="setFrontGap">Spel mellan fronter</label><div class="fld-unit"><input type="number" id="setFrontGap" min="0" step="0.5" class="fld"><span class="unit">mm</span></div></div>
+                </fieldset>
+                <fieldset class="field-group grid-cols-2">
+                    <legend class="group-title mb-3">Spillbitar</legend>
+                    <div><label class="lbl" for="setMinOffcutL">Minsta längd att spara</label><div class="fld-unit"><input type="number" id="setMinOffcutL" min="0" class="fld"><span class="unit">mm</span></div></div>
+                    <div><label class="lbl" for="setMinOffcutW">Minsta bredd att spara</label><div class="fld-unit"><input type="number" id="setMinOffcutW" min="0" class="fld"><span class="unit">mm</span></div></div>
+                </fieldset>
+                <fieldset class="field-group">
+                    <legend class="group-title mb-3">Köplänkar för beslag</legend>
+                    <select id="setShop" class="fld" aria-label="Butik"></select>
+                    <div id="setShopTemplateWrap"><label class="lbl" for="setShopTemplate">Egen länkmall, {q} ersätts med sökordet</label>
+                        <input type="url" id="setShopTemplate" class="fld text-[13px]" placeholder="https://www.exempel.se/sok?q={q}&amp;ref=cutyard"></div>
+                </fieldset>
             </div>
-            <label class="flex items-start gap-3 cursor-pointer bg-blue-900/10 border border-blue-500/20 p-4 rounded-xl">
-                <span class="check-wrap mt-0.5"><input type="checkbox" id="setGrainLock" class="check"><svg class="check-mark" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path></svg></span>
-                <span><span class="text-sm text-gray-200 block font-medium">Lås träriktning för alla delar</span>
-                <span class="text-xs text-gray-500 mt-1 block">Normalt låses bara material med ådring (i materialbiblioteket). Dolda delar som lådbottnar får alltid roteras.</span></span>
-            </label>
-            <div class="grid grid-cols-1 gap-4 pt-2 border-t border-white/5">
-                <div><label class="fld-label" for="setShop">Butikslänkar för beslag</label>
-                    <select id="setShop" class="fld"></select></div>
-                <div id="setShopTemplateWrap"><label class="fld-label" for="setShopTemplate">Egen länkmall ({q} = sökord)</label>
-                    <input type="url" id="setShopTemplate" class="fld fld-text text-sm" placeholder="https://www.exempel.se/sok?q={q}&amp;ref=cutyard"></div>
-            </div>
-            <div class="flex justify-end gap-3 pt-5 border-t border-white/5">
-                <button id="btnCloseSettings" type="button" class="btn-ghost">Avbryt</button>
-                <button id="btnSaveSettings" type="button" class="btn-primary">Spara</button>
+            <div class="px-5 py-4 border-t flex justify-end gap-2" style="border-color: var(--line);">
+                <button id="btnCloseSettings" type="button" class="btn-quiet">Avbryt</button>
+                <button id="btnSaveSettings" type="button" class="btn-accent">Spara</button>
             </div>
         </div>
     </div>
 
-    <!-- Material -->
-    <div id="modalMaterials" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-50 p-4" hidden>
-        <div class="bg-gray-900/95 rounded-2xl w-full max-w-4xl max-h-full overflow-y-auto shadow-2xl border border-white/10 p-5 sm:p-8 space-y-5" role="dialog" aria-modal="true" aria-labelledby="matTitle">
-            <div class="flex flex-wrap justify-between items-center gap-3 border-b border-white/10 pb-4">
-                <h3 id="matTitle" class="text-xl font-bold text-white">Material och spillbitar</h3>
-                <p class="text-xs text-gray-500">Priserna är exempel. Ange dina egna.</p>
+    <!-- Spillager -->
+    <div id="modalOffcuts" class="fixed inset-0 bg-black/60 flex justify-center items-center z-50 p-4" hidden>
+        <div class="card w-full max-w-lg max-h-full overflow-y-auto shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="offTitle">
+            <div class="px-5 pt-5">
+                <h3 id="offTitle" class="text-base font-semibold">Spillager</h3>
+                <p class="text-[12px] muted mt-1">Sparade spillbitar används före nya skivor i optimeringen och kostar ingenting.</p>
             </div>
-            <div class="overflow-x-auto -mx-1">
-                <table class="tbl w-full text-sm min-w-[760px]">
-                    <thead><tr><th>Namn</th><th>Tjocklek</th><th>Längd</th><th>Bredd</th><th>Pris/skiva</th><th title="Delar roteras inte på skivan">Ådring</th><th title="Kan kantlistas">Kantlist</th><th></th></tr></thead>
-                    <tbody id="matRows"></tbody>
-                </table>
-            </div>
-            <div class="flex flex-wrap gap-2">
-                <button id="btnAddMaterial" type="button" class="btn-ghost">+ Lägg till material</button>
-                <button id="btnResetMaterials" type="button" class="btn-ghost">Återställ standardlistan</button>
-            </div>
-            <div class="pt-5 border-t border-white/5">
-                <h4 class="text-sm font-bold text-gray-300 mb-1">Spillager</h4>
-                <p class="text-xs text-gray-500 mb-3">Sparade spillbitar används före nya skivor i optimeringen och kostar ingenting.</p>
-                <div id="offcutList" class="flex flex-wrap gap-2"></div>
-                <div class="flex flex-wrap items-end gap-2 mt-4">
-                    <div><label class="fld-label" for="newOffMat">Material</label><select id="newOffMat" class="fld !w-56"></select></div>
-                    <div><label class="fld-label" for="newOffL">Längd</label><input id="newOffL" type="number" min="1" class="fld !w-24"></div>
-                    <div><label class="fld-label" for="newOffW">Bredd</label><input id="newOffW" type="number" min="1" class="fld !w-24"></div>
-                    <button id="btnAddOffcut" type="button" class="btn-ghost">+ Lägg till spillbit</button>
+            <div class="p-5 space-y-5">
+                <div id="offcutList"></div>
+                <div class="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-end">
+                    <div><label class="lbl" for="newOffT">Tjocklek</label><div class="fld-unit"><input id="newOffT" type="number" min="1" step="0.5" class="fld"><span class="unit">mm</span></div></div>
+                    <div><label class="lbl" for="newOffL">Längd</label><div class="fld-unit"><input id="newOffL" type="number" min="1" class="fld"><span class="unit">mm</span></div></div>
+                    <div><label class="lbl" for="newOffW">Bredd</label><div class="fld-unit"><input id="newOffW" type="number" min="1" class="fld"><span class="unit">mm</span></div></div>
+                    <button id="btnAddOffcut" type="button" class="btn-line">Lägg till</button>
                 </div>
             </div>
-            <div class="flex justify-end gap-3 pt-5 border-t border-white/5">
-                <button id="btnCloseMaterials" type="button" class="btn-ghost">Avbryt</button>
-                <button id="btnSaveMaterials" type="button" class="btn-primary">Spara</button>
+            <div class="px-5 py-4 border-t flex justify-end" style="border-color: var(--line);">
+                <button id="btnCloseOffcuts" type="button" class="btn-accent">Klar</button>
             </div>
         </div>
     </div>
 
-    <!-- Bekräfta nytt projekt -->
-    <div id="modalNew" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-50 p-4" hidden>
-        <div class="bg-gray-900/95 rounded-2xl w-full max-w-sm shadow-2xl border border-white/10 p-6 space-y-5" role="dialog" aria-modal="true" aria-labelledby="newTitle">
-            <h3 id="newTitle" class="text-lg font-bold text-white">Starta ett nytt projekt?</h3>
-            <p class="text-sm text-gray-400">Det nuvarande projektet ersätts. Spara det först om du vill behålla det.</p>
+    <!-- Nytt projekt -->
+    <div id="modalNew" class="fixed inset-0 bg-black/60 flex justify-center items-center z-50 p-4" hidden>
+        <div class="card w-full max-w-sm shadow-2xl p-5 space-y-4" role="dialog" aria-modal="true" aria-labelledby="newTitle">
+            <h3 id="newTitle" class="text-base font-semibold">Starta ett nytt projekt?</h3>
+            <p class="muted">Det nuvarande projektet ersätts. Du kan ångra direkt efteråt.</p>
             <div class="flex flex-wrap justify-end gap-2">
-                <button id="btnNewCancel" type="button" class="btn-ghost">Avbryt</button>
-                <button id="btnNewExample" type="button" class="btn-ghost">Exempelprojekt</button>
-                <button id="btnNewEmpty" type="button" class="btn-primary">Tomt projekt</button>
+                <button id="btnNewCancel" type="button" class="btn-quiet">Avbryt</button>
+                <button id="btnNewExample" type="button" class="btn-line">Exempelprojekt</button>
+                <button id="btnNewEmpty" type="button" class="btn-accent">Tomt projekt</button>
             </div>
         </div>
     </div>
 
-    <div id="toast" role="status" aria-live="polite" class="toast is-hidden fixed bottom-6 right-4 sm:right-6 left-4 sm:left-auto bg-gradient-to-r from-gray-900 to-black border border-gray-700 text-white px-5 py-4 rounded-xl shadow-2xl z-50 flex items-center gap-3" style="margin-bottom: env(safe-area-inset-bottom, 0px);">
-        <span id="toastIcon" class="p-1.5 rounded-full bg-green-500/20 text-green-400"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path></svg></span>
-        <span id="toastMsg" class="font-medium text-sm"></span>
-        <button id="toastUndo" type="button" class="ml-2 text-sm font-semibold text-blue-300 hover:text-white underline underline-offset-2" hidden>Ångra</button>
+    <div id="toast" role="status" aria-live="polite" class="toast is-hidden fixed bottom-5 left-4 right-4 sm:left-auto sm:right-6 z-50 card shadow-2xl px-4 py-3 flex items-center gap-3" style="margin-bottom: env(safe-area-inset-bottom, 0px); background: var(--surface-2);">
+        <span id="toastDot" class="w-2 h-2 rounded-full shrink-0"></span>
+        <span id="toastMsg" class="text-[13px]"></span>
+        <button id="toastUndo" type="button" class="ml-2 text-[13px] font-medium" style="color: var(--accent);" hidden>Ångra</button>
     </div>
 
     <div id="printArea" aria-hidden="true"></div>

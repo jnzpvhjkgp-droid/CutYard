@@ -1,6 +1,6 @@
 // Service worker: gör CutYard användbar offline (t.ex. i verkstaden utan täckning).
 // Höj VERSION när filerna ändras så att gamla cachar rensas.
-const VERSION = 'cutyard-v4';
+const VERSION = 'cutyard-v5';
 const SHELL = [
     './',
     'index.html',
@@ -9,7 +9,6 @@ const SHELL = [
     'assets/icon.svg',
     'assets/icon-192.png',
     'assets/icon-512.png',
-    'assets/fonts/inter-300.woff2',
     'assets/fonts/inter-400.woff2',
     'assets/fonts/inter-500.woff2',
     'assets/fonts/inter-600.woff2',

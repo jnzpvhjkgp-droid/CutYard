@@ -1,7 +1,7 @@
 // CutYard – gränssnitt. All beräkning sker i core.js.
 import {
-    fmt, fmtKr, round1, uid, DEFAULT_SETTINGS, SHOPS, sanitizeSettings, shopUrl,
-    DEFAULT_MATERIALS, materialLabel, sanitizeMaterials, sanitizeOffcuts,
+    fmt, fmtKr, uid, DEFAULT_SETTINGS, SHOPS, sanitizeSettings, shopUrl,
+    thickKey, thickLabel, sanitizeOffcuts,
     SLIDES, slideById, ITEM_TYPES, DEFAULT_PARAMS, makeItem, sanitizeProject, exampleProject,
     buildItem, collect, optimize, buildCsv
 } from './core.js';
@@ -14,7 +14,7 @@ const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;'
 // ---------------------------------------------------------------------------
 // Lagring (per webbläsare). Allt är inslaget i try/catch – privat läge m.m.
 // ---------------------------------------------------------------------------
-const KEYS = { settings: 'cutyard.v2.settings', materials: 'cutyard.v2.materials', offcuts: 'cutyard.v2.offcuts', project: 'cutyard.v2.project', active: 'cutyard.v2.active' };
+const KEYS = { settings: 'cutyard.v2.settings', offcuts: 'cutyard.v3.offcuts', project: 'cutyard.v2.project', active: 'cutyard.v2.active', tab: 'cutyard.v2.tab' };
 const store = {
     get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
     set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* ignoreras */ } }
@@ -25,96 +25,92 @@ const store = {
 // ---------------------------------------------------------------------------
 const state = {
     settings: { ...DEFAULT_SETTINGS },
-    materials: DEFAULT_MATERIALS.map(m => ({ ...m })),
     offcuts: [],
     project: exampleProject(),
     activeId: null,
     scope: 'project',
+    tab: 'list',
     last: null   // senaste beräkning { col, opt, items }
 };
-const M = () => Object.fromEntries(state.materials.map(m => [m.id, m]));
 const activeItem = () => state.project.items.find(i => i.id === state.activeId) || state.project.items[0]; // undefined om projektet är tomt
 
 // ---------------------------------------------------------------------------
-// Formulärschema per objekttyp. show(p) styr om fältet syns.
+// Formulärschema per objekttyp. Grupper → rader → fält. show(p) styr synlighet.
 // ---------------------------------------------------------------------------
-const ACCENT = { cabinet: '#3B82F6', drawer: '#A855F7', shaker: '#10B981' };
-const BAR = { cabinet: 'from-blue-600', drawer: 'from-purple-500', shaker: 'from-emerald-500' };
-const TYPE_LABEL = { cabinet: 'Skåp', drawer: 'Lådor (fristående)', shaker: 'Shaker-dörr' };
+const TYPE_COLOR = { cabinet: '#5b93f5', drawer: '#a58bf0', shaker: '#5fbf9a' };
+const TYPE_LABEL = { cabinet: 'Skåp', drawer: 'Lådor', shaker: 'Shaker-dörr' };
 
-const n = (key, label, o = {}) => ({ kind: 'num', key, label, ...o });
-const mat = (key, label, o = {}) => ({ kind: 'mat', key, label, ...o });
+const n = (key, label, o = {}) => ({ kind: 'num', key, label, unit: 'mm', ...o });
 const sel = (key, label, options, o = {}) => ({ kind: 'select', key, label, options, ...o });
 const chk = (key, label, o = {}) => ({ kind: 'check', key, label, ...o });
-const sec = (label, o = {}) => ({ kind: 'section', label, ...o });
 const note = (text, o = {}) => ({ kind: 'note', text, ...o });
-const slideOptions = () => SLIDES.map(s => [s.id, s.name]);
+const group = (title, rows, o = {}) => ({ title, rows, ...o });
+const slideOptions = SLIDES.map(s => [s.id, s.name]);
+
+const isDrawers = p => p.fronts === 'drawers';
+const hasFronts = p => p.fronts !== 'none';
+const isShakerFront = p => hasFronts(p) && p.frontStyle === 'shaker';
 
 const SCHEMA = {
     cabinet: [
-        sec('Yttermått (mm)'),
-        [n('w', 'Bredd', { min: 100 }), n('h', 'Höjd', { min: 100 }), n('d', 'Djup', { min: 100 })],
-        sec('Stomme'),
-        [mat('carcassMat', 'Stommaterial'), mat('backMat', 'Bakstycke', { allowNone: true })],
-        [n('shelves', 'Hyllplan', { min: 0, max: 20, int: true, show: p => p.fronts !== 'drawers' }), chk('edgeBand', 'Kantlist på framkanter')],
-        sec('Fronter'),
-        [sel('fronts', 'Fronter', [['none', 'Inga'], ['doors', 'Dörrar'], ['drawers', 'Lådor']]),
-         sel('doorCount', 'Antal dörrar', [['auto', 'Auto'], ['1', '1'], ['2', '2']], { show: p => p.fronts === 'doors' }),
-         n('drawerCount', 'Antal lådor', { min: 1, max: 8, int: true, show: p => p.fronts === 'drawers' })],
-        [mat('frontMat', 'Frontmaterial', { show: p => p.fronts !== 'none' }),
-         sel('frontStyle', 'Stil', [['flat', 'Slät'], ['shaker', 'Shaker']], { show: p => p.fronts !== 'none' })],
-        [n('frame', 'Rambredd', { min: 20, show: p => p.fronts !== 'none' && p.frontStyle === 'shaker' }),
-         n('tenon', 'Tapp/spår', { min: 0, show: p => p.fronts !== 'none' && p.frontStyle === 'shaker' }),
-         mat('panelMat', 'Fyllning', { show: p => p.fronts !== 'none' && p.frontStyle === 'shaker' })],
-        sec('Lådor', { show: p => p.fronts === 'drawers' }),
-        [sel('slideId', 'Lådskenor', slideOptions(), { show: p => p.fronts === 'drawers' }),
-         n('clearance', 'Spel/sida', { min: 0, step: 0.1, show: p => p.fronts === 'drawers' && p.slideId === 'custom' })],
-        [mat('drawerSideMat', 'Lådsidor', { show: p => p.fronts === 'drawers' }), mat('drawerBotMat', 'Lådbotten', { show: p => p.fronts === 'drawers' }),
-         n('groove', 'Spårdjup', { min: 0, step: 0.5, show: p => p.fronts === 'drawers' })],
-        note(p => slideById(p.slideId).note, { show: p => p.fronts === 'drawers' })
+        group('Yttermått', [[n('w', 'Bredd', { min: 100 }), n('h', 'Höjd', { min: 100 }), n('d', 'Djup', { min: 100 })]]),
+        group('Stomme', [
+            [n('carcassT', 'Tjocklek', { min: 3, step: 0.5 }), n('backT', 'Bakstycke', { min: 0, step: 0.5, hint: '0 = inget bakstycke' }),
+             n('shelves', 'Hyllplan', { min: 0, max: 20, int: true, unit: 'st', show: p => !isDrawers(p) })],
+            [chk('edgeBand', 'Kantlist på framkanter')]
+        ]),
+        group('Fronter', [
+            [sel('fronts', 'Typ', [['none', 'Inga'], ['doors', 'Dörrar'], ['drawers', 'Lådor']]),
+             sel('doorCount', 'Antal', [['auto', 'Auto'], ['1', '1'], ['2', '2']], { show: p => p.fronts === 'doors' }),
+             n('drawerCount', 'Antal', { min: 1, max: 8, int: true, unit: 'st', show: isDrawers })],
+            [sel('frontStyle', 'Stil', [['flat', 'Slät'], ['shaker', 'Shaker']], { show: hasFronts }), n('frontT', 'Tjocklek', { min: 3, step: 0.5, show: hasFronts })],
+            [n('frame', 'Rambredd', { min: 20, show: isShakerFront }), n('tenon', 'Tapp/spår', { min: 0, show: isShakerFront }), n('panelT', 'Fyllning', { min: 2, step: 0.5, show: isShakerFront })],
+            [chk('frontBand', 'Kantlist runt fronterna', { show: p => hasFronts(p) && p.frontStyle === 'flat' })]
+        ]),
+        group('Lådor', [
+            [sel('slideId', 'Lådskenor', slideOptions)],
+            [n('drawerSideT', 'Sidor', { min: 3, step: 0.5 }), n('drawerBotT', 'Botten', { min: 2, step: 0.5 }), n('groove', 'Spårdjup', { min: 0, step: 0.5 })],
+            [n('clearance', 'Spel per sida', { min: 0, step: 0.1, show: p => p.slideId === 'custom' })],
+            [note(p => slideById(p.slideId).note)]
+        ], { show: isDrawers })
     ],
     drawer: [
-        sec('Skåpsöppning (mm)'),
-        [n('w', 'Innerbredd', { min: 50 }), n('h', 'Lådhöjd', { min: 30 }), n('d', 'Innerdjup', { min: 100 })],
-        sec('Material'),
-        [mat('sideMat', 'Lådsidor'), mat('botMat', 'Botten'), n('groove', 'Spårdjup', { min: 0, step: 0.5 })],
-        sec('Lådskenor'),
-        [sel('slideId', 'Skenor', slideOptions()), n('clearance', 'Spel/sida', { min: 0, step: 0.1, show: p => p.slideId === 'custom' })],
-        note(p => slideById(p.slideId).note)
+        group('Skåpsöppning', [[n('w', 'Innerbredd', { min: 50 }), n('h', 'Lådhöjd', { min: 30 }), n('d', 'Innerdjup', { min: 100 })]]),
+        group('Tjocklekar', [[n('sideT', 'Sidor', { min: 3, step: 0.5 }), n('botT', 'Botten', { min: 2, step: 0.5 }), n('groove', 'Spårdjup', { min: 0, step: 0.5 })]]),
+        group('Lådskenor', [
+            [sel('slideId', 'Typ', slideOptions)],
+            [n('clearance', 'Spel per sida', { min: 0, step: 0.1, show: p => p.slideId === 'custom' })],
+            [note(p => slideById(p.slideId).note)]
+        ])
     ],
     shaker: [
-        sec('Dörrmått (mm)'),
-        [n('w', 'Bredd', { min: 100 }), n('h', 'Höjd', { min: 100 })],
-        [n('frame', 'Rambredd', { min: 20 }), n('tenon', 'Tapp/spårdjup', { min: 0 })],
-        sec('Material'),
-        [mat('frameMat', 'Ram'), mat('panelMat', 'Fyllning')],
-        chk('hinges', 'Räkna gångjärn och borrschema')
+        group('Dörrmått', [[n('w', 'Bredd', { min: 100 }), n('h', 'Höjd', { min: 100 })]]),
+        group('Ram och fyllning', [
+            [n('frame', 'Rambredd', { min: 20 }), n('tenon', 'Tapp/spår', { min: 0 })],
+            [n('frameT', 'Ramtjocklek', { min: 5, step: 0.5 }), n('panelT', 'Fyllning', { min: 2, step: 0.5 })]
+        ]),
+        group('Gångjärn', [[chk('hinges', 'Räkna gångjärn och borrschema')]])
     ]
 };
 
-const CHECK_SVG = '<svg class="check-mark" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path></svg>';
+const CHECK_SVG = '<svg class="check-mark" fill="none" stroke="currentColor" stroke-width="3.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>';
 let fieldEls = [];   // [{ field, wrap, input }]
-
-function materialOptions(selected, allowNone) {
-    const opts = state.materials.map(m => `<option value="${esc(m.id)}"${m.id === selected ? ' selected' : ''}>${esc(materialLabel(m))}</option>`);
-    if (allowNone) opts.unshift(`<option value="none"${selected === 'none' ? ' selected' : ''}>Inget</option>`);
-    if (selected !== 'none' && !state.materials.some(m => m.id === selected)) opts.unshift(`<option value="${esc(selected)}" selected>Saknas i biblioteket</option>`);
-    return opts.join('');
-}
 
 function renderField(f, item) {
     const p = item.params, id = `f_${f.key}`;
     const wrap = document.createElement('div');
     wrap.className = 'min-w-0';
     if (f.kind === 'num') {
-        wrap.innerHTML = `<label class="fld-label" for="${id}">${esc(f.label)}</label><input type="number" id="${id}" class="fld" inputmode="decimal" ${f.min != null ? `min="${f.min}"` : ''} ${f.max != null ? `max="${f.max}"` : ''} step="${f.step || (f.int ? 1 : 'any')}" value="${esc(p[f.key])}" placeholder="${esc(DEFAULT_PARAMS[item.type][f.key])}">`;
-    } else if (f.kind === 'mat') {
-        wrap.innerHTML = `<label class="fld-label" for="${id}">${esc(f.label)}</label><select id="${id}" class="fld">${materialOptions(p[f.key], f.allowNone)}</select>`;
+        wrap.innerHTML = `<label class="lbl" for="${id}">${esc(f.label)}</label>
+            <div class="fld-unit"><input type="number" id="${id}" class="fld" inputmode="decimal" ${f.min != null ? `min="${f.min}"` : ''} ${f.max != null ? `max="${f.max}"` : ''}
+                step="${f.step || (f.int ? 1 : 'any')}" value="${esc(p[f.key])}" placeholder="${esc(DEFAULT_PARAMS[item.type][f.key])}"${f.hint ? ` title="${esc(f.hint)}"` : ''}><span class="unit">${f.unit}</span></div>
+            ${f.hint ? `<span class="block text-[11px] faint mt-1">${esc(f.hint)}</span>` : ''}`;
     } else if (f.kind === 'select') {
-        wrap.innerHTML = `<label class="fld-label" for="${id}">${esc(f.label)}</label><select id="${id}" class="fld">${f.options.map(([v, l]) => `<option value="${esc(v)}"${String(p[f.key]) === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
+        wrap.innerHTML = `<label class="lbl" for="${id}">${esc(f.label)}</label><select id="${id}" class="fld">${f.options.map(([v, l]) => `<option value="${esc(v)}"${String(p[f.key]) === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
     } else if (f.kind === 'check') {
-        wrap.className = 'min-w-0 flex items-end pb-2';
-        wrap.innerHTML = `<label class="flex items-center gap-3 cursor-pointer"><span class="check-wrap"><input type="checkbox" id="${id}" class="check"${p[f.key] ? ' checked' : ''}>${CHECK_SVG}</span><span class="text-sm text-gray-300">${esc(f.label)}</span></label>`;
+        wrap.innerHTML = `<label class="inline-flex items-center gap-2.5 cursor-pointer"><span class="check-wrap"><input type="checkbox" id="${id}" class="check"${p[f.key] ? ' checked' : ''}>${CHECK_SVG}</span><span>${esc(f.label)}</span></label>`;
+    } else if (f.kind === 'note') {
+        wrap.className = 'text-[12px] faint leading-relaxed';
     }
     return { field: f, wrap, input: wrap.querySelector('input,select') };
 }
@@ -124,31 +120,23 @@ function renderForm() {
     const form = $('itemForm');
     form.innerHTML = '';
     fieldEls = [];
-    for (const entry of SCHEMA[item.type]) {
-        if (Array.isArray(entry)) {
-            const row = document.createElement('div');
-            row.className = `grid gap-3 sm:gap-4 ${entry.length === 3 ? 'grid-cols-3' : 'grid-cols-2'}`;
-            entry.forEach(f => { const fe = renderField(f, item); row.appendChild(fe.wrap); fieldEls.push(fe); });
-            fieldEls.push({ field: { show: p => entry.some(f => !f.show || f.show(p)) }, wrap: row });
-            form.appendChild(row);
-        } else if (entry.kind === 'section') {
-            const h = document.createElement('div');
-            h.className = 'section-title';
-            h.textContent = entry.label;
-            form.appendChild(h);
-            fieldEls.push({ field: entry, wrap: h });
-        } else if (entry.kind === 'note') {
-            const pEl = document.createElement('p');
-            pEl.className = 'text-xs text-gray-500';
-            form.appendChild(pEl);
-            fieldEls.push({ field: entry, wrap: pEl });
-        } else {
-            const fe = renderField(entry, item);
-            form.appendChild(fe.wrap); fieldEls.push(fe);
+    for (const g of SCHEMA[item.type]) {
+        const fs = document.createElement('fieldset');
+        fs.className = 'space-y-3';
+        fs.innerHTML = `<legend class="group-title mb-3">${esc(g.title)}</legend>`;
+        const rowEls = [];
+        for (const row of g.rows) {
+            const r = document.createElement('div');
+            r.className = `grid gap-3 ${row.length === 3 ? 'grid-cols-3' : row.length === 2 ? 'grid-cols-2' : 'grid-cols-1'}`;
+            row.forEach(f => { const fe = renderField(f, item); r.appendChild(fe.wrap); fieldEls.push(fe); });
+            fs.appendChild(r);
+            const entry = { field: { show: p => row.some(f => !f.show || f.show(p)) }, wrap: r };
+            fieldEls.push(entry);
+            rowEls.push(entry);
         }
+        fieldEls.push({ field: { show: p => (!g.show || g.show(p)) && rowEls.some(e => e.field.show(p)) }, wrap: fs });
+        form.appendChild(fs);
     }
-    const first = form.querySelector('.section-title');
-    if (first) first.classList.remove('pt-2', 'border-t');
     updateVisibility();
 }
 
@@ -176,17 +164,21 @@ function readField({ field, input }) {
 }
 
 // ---------------------------------------------------------------------------
-// Projektlista (chips) och editor
+// Objektlista och editor
 // ---------------------------------------------------------------------------
-function renderChips() {
-    const wrap = $('itemChips');
-    wrap.innerHTML = state.project.items.map(it => {
+function renderItemList() {
+    const items = state.project.items;
+    $('itemCount').textContent = items.length ? String(items.length) : '';
+    $('itemList').innerHTML = items.map(it => {
         const on = it.id === state.activeId;
-        return `<div class="chip ${on ? 'chip-active' : 'chip-idle'} !p-0 !gap-0">
-            <button type="button" role="tab" aria-selected="${on}" data-item="${esc(it.id)}" class="flex items-center gap-2 pl-3 pr-2 py-2">
-                <span class="w-2 h-2 rounded-full shrink-0" style="background:${ACCENT[it.type]}"></span>
-                <span>${esc(it.name)}</span>${it.qty > 1 ? `<span class="num text-xs text-gray-400">×${it.qty}</span>` : ''}</button>
-            <button type="button" data-remove="${esc(it.id)}" class="self-stretch px-2.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-r-lg border-l border-white/5" title="Ta bort ${esc(it.name)}" aria-label="Ta bort ${esc(it.name)}">✕</button></div>`;
+        return `<li class="item-row ${on ? 'is-active' : ''} shrink-0 lg:shrink">
+            <button type="button" role="tab" aria-selected="${on}" data-item="${esc(it.id)}" class="flex-1 min-w-0 flex items-center gap-2.5 pl-2.5 pr-1 py-2 text-left">
+                <span class="w-2 h-2 rounded-full shrink-0" style="background:${TYPE_COLOR[it.type]}"></span>
+                <span class="min-w-0"><span class="block truncate">${esc(it.name)}</span>
+                <span class="block text-[11px] faint">${TYPE_LABEL[it.type]}${it.qty > 1 ? ` · ${it.qty} st` : ''}</span></span>
+            </button>
+            <button type="button" data-remove="${esc(it.id)}" class="rm px-2.5 self-stretch muted hover:text-[var(--danger)]" title="Ta bort ${esc(it.name)}" aria-label="Ta bort ${esc(it.name)}">✕</button>
+        </li>`;
     }).join('');
 }
 
@@ -195,17 +187,16 @@ function selectItem(id) {
     const item = activeItem();
     const empty = !item;
     $('emptyState').hidden = !empty;
-    $('editorSection').hidden = empty;
-    if (empty) { renderChips(); recompute(); return; }
+    $('editorPanel').hidden = empty;
+    $('viewerPanel').hidden = empty;
+    if (empty) { renderItemList(); recompute(); return; }
     state.activeId = item.id;
     store.set(KEYS.active, item.id);
     $('itemName').value = item.name;
     $('itemQty').value = item.qty;
     $('itemType').textContent = TYPE_LABEL[item.type];
-    $('editorPanel').style.setProperty('--accent', ACCENT[item.type]);
-    $('editorBar').className = `absolute top-0 left-0 w-full h-1 bg-gradient-to-r ${BAR[item.type]} to-transparent`;
     viewer.frameKey = '';
-    renderChips();
+    renderItemList();
     renderForm();
     recompute();
 }
@@ -225,173 +216,167 @@ function addItem(type) {
 let viewer;
 
 function recompute() {
-    const mats = M();
     const item = activeItem();
     if (item) {
-        const built = buildItem(item, mats, state.settings);
+        const built = buildItem(item, state.settings);
         viewer.show(built.parts, item.excluded, `${item.id}|${item.params.w}|${item.params.h}|${item.params.d}`);
         renderItemStatus(item, built);
     }
     const items = !item ? [] : state.scope === 'item' ? [item] : state.project.items;
-    const col = collect(items, mats, state.settings);
-    const opt = optimize(col.rows, mats, state.settings, state.offcuts);
+    const col = collect(items, state.settings);
+    const opt = optimize(col.rows, state.settings, state.offcuts);
     state.last = { col, opt, items };
-    renderResults(col, opt, mats);
+    renderResults(col, opt);
     persist();
 }
+let timer;
+const scheduleRecompute = () => { clearTimeout(timer); timer = setTimeout(recompute, 120); };
 
 function renderItemStatus(item, built) {
-
     const warn = $('itemWarn');
     warn.hidden = !built.warnings.length;
-    warn.innerHTML = built.warnings.map(w => `<div>⚠ ${esc(w)}</div>`).join('');
+    warn.innerHTML = built.warnings.map(w => `<div>${esc(w)}</div>`).join('');
     const info = $('itemInfo');
     info.hidden = !built.info;
     info.textContent = built.info ? built.info.join(' · ') : '';
-
     // Delar som klickats bort i 3D-vyn (nycklar som inte längre finns räknas inte)
     const keys = new Set(built.parts.map(p => p.key));
     const off = Object.keys(item.excluded).filter(k => keys.has(k));
     $('excludedNote').hidden = !off.length;
     $('excludedText').textContent = off.length === 1 ? '1 del är borttagen ur kaplistan.' : `${off.length} delar är borttagna ur kaplistan.`;
 }
-let timer;
-const scheduleRecompute = () => { clearTimeout(timer); timer = setTimeout(recompute, 120); };
 
-function renderResults(col, opt, mats) {
+function renderResults(col, opt) {
+    const showItems = state.scope === 'project';
     $('scopeItemName').textContent = activeItem()?.name || 'objektet';
     $('statParts').textContent = col.partCount;
     $('statEdge').textContent = col.edgeMeters > 0 ? `${fmt(Math.ceil(col.edgeMeters * 1.1 * 10) / 10)} m` : '–';
     $('statSheets').textContent = opt.sheets;
     $('statUtil').textContent = opt.sheets ? `${Math.round(opt.utilization * 100)} % nyttjat` : '';
     $('statCost').textContent = fmtKr(opt.totalCost);
-    $('statOffcuts').textContent = opt.offcutsUsed.length ? `${opt.offcutsUsed.length} spillbitar används` : 'Exempelpriser, ändra under Material';
 
     const warnings = [...col.warnings];
     opt.materials.forEach(r => {
-        if (r.oversize.length) warnings.push(`${r.oversize.length} del(ar) i ${materialLabel(r.mat)} är större än skivan: ${[...new Set(r.oversize.map(p => `#${p.nr} ${fmt(p.l)}×${fmt(p.w)}`))].join(', ')} mm.`);
+        if (r.oversize.length) warnings.push(`${r.oversize.length} del(ar) i ${thickLabel(r.sheet.t)} är större än skivan: ${[...new Set(r.oversize.map(p => `#${p.nr} ${fmt(p.l)}×${fmt(p.w)}`))].join(', ')} mm.`);
     });
-    const wb = $('resWarn');
-    wb.hidden = !warnings.length;
-    wb.innerHTML = warnings.map(w => `<div>⚠ ${esc(w)}</div>`).join('');
+    $('resWarn').hidden = !warnings.length;
+    $('resWarn').innerHTML = warnings.map(w => `<div>${esc(w)}</div>`).join('');
 
-    // Kaplista grupperad per material
-    const byMat = {};
-    col.rows.forEach(r => { (byMat[r.mat] = byMat[r.mat] || []).push(r); });
-    $('resList').innerHTML = col.rows.length ? Object.entries(byMat).map(([id, rows]) => `
-        <div class="glass-card p-4">
-            <h4 class="text-xs font-bold uppercase tracking-widest mb-3 border-b border-white/5 pb-2 flex justify-between items-center gap-2">
-                <span class="text-white">${esc(materialLabel(mats[id]))}</span>
-                <span class="bg-blue-500/20 text-blue-300 border border-blue-500/30 px-2.5 py-0.5 rounded-full whitespace-nowrap num">${rows.reduce((a, r) => a + r.count, 0)} delar</span>
-            </h4>
-            <ul class="space-y-2.5">${rows.map(r => `
-                <li class="flex items-start gap-3 text-sm">
-                    <span class="num shrink-0 w-8 h-6 rounded bg-amber-500/90 text-black text-xs font-bold flex items-center justify-center" title="Delnummer på skärschema och etikett">${r.nr}</span>
-                    <span class="min-w-0 flex-1">
-                        <span class="num text-white font-medium whitespace-nowrap">${fmt(r.l)} × ${fmt(r.w)}</span>
-                        ${r.lock ? '<span class="text-[10px] text-amber-400/80 ml-1" title="Ådring längs första måttet">⇄</span>' : ''}
-                        <span class="block text-gray-500 text-xs truncate" title="${esc(r.names.join(', '))} – ${esc(r.items.join(', '))}">${esc(r.names.join(', '))}${state.scope === 'project' ? ` · ${esc(r.items.join(', '))}` : ''}</span>
-                    </span>
-                    <span class="num bg-white/5 text-gray-300 border border-white/10 px-2 py-1 rounded text-xs font-bold whitespace-nowrap">${r.count} st</span>
-                </li>`).join('')}
-            </ul>
-        </div>`).join('') : `<p class="text-sm text-gray-500">${activeItem() ? 'Inga delar valda. Klicka på delarna i 3D-vyn för att ta med dem igen.' : 'Lägg till ett objekt för att få en kaplista.'}</p>`;
+    // Kaplista: en tabell, grupperad per tjocklek
+    const byT = new Map();
+    col.rows.forEach(r => { const k = thickKey(r.t); if (!byT.has(k)) byT.set(k, []); byT.get(k).push(r); });
+    $('resList').innerHTML = col.rows.length ? `<table class="tbl">
+        <thead><tr><th>Nr</th><th class="!text-right">Antal</th><th class="!text-right">Längd</th><th class="!text-right">Bredd</th><th>Del</th>${showItems ? '<th>Objekt</th>' : ''}</tr></thead>
+        <tbody>${[...byT.values()].map(rows => `
+            <tr><td colspan="${showItems ? 6 : 5}" class="!pt-5 !pb-2"><span class="font-semibold">${thickLabel(rows[0].t)}</span> <span class="faint text-[12px] ml-2 num">${rows.reduce((a, r) => a + r.count, 0)} delar</span></td></tr>
+            ${rows.map(r => `<tr>
+                <td><span class="nr">${r.nr}</span></td>
+                <td class="num text-right">${r.count}</td>
+                <td class="num text-right whitespace-nowrap">${fmt(r.l)}${r.lock ? '<span class="faint" title="Ådring längs längden"> ⇅</span>' : ''}</td>
+                <td class="num text-right">${fmt(r.w)}</td>
+                <td class="muted">${esc(r.names.join(', '))}</td>
+                ${showItems ? `<td class="faint">${esc(r.items.join(', '))}</td>` : ''}
+            </tr>`).join('')}`).join('')}</tbody></table>
+        <p class="text-[12px] faint mt-3">Mått i mm, kantlist är redan avdragen. Numret står på skärschemat och etiketten.</p>`
+        : `<p class="muted">${activeItem() ? 'Inga delar valda. Klicka på delarna i 3D-vyn för att ta med dem igen.' : 'Lägg till ett objekt för att få en kaplista.'}</p>`;
 
-    // Skärscheman
+    // Skärscheman per tjocklek
     const resOpt = $('resOpt');
     resOpt.innerHTML = '';
     opt.materials.forEach(r => {
-        const group = document.createElement('div');
-        group.innerHTML = `<h4 class="text-sm font-bold text-gray-300 mb-3 flex flex-wrap justify-between gap-2"><span>${esc(materialLabel(r.mat))}</span><span class="text-xs text-gray-500 num">${r.sheets} ${r.sheets === 1 ? 'skiva' : 'skivor'} · ${fmtKr(r.cost)}</span></h4>`;
+        const key = thickKey(r.sheet.t);
+        const own = state.settings.prices[key] != null;
+        const sec = document.createElement('section');
+        sec.innerHTML = `<div class="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
+                <h3 class="font-semibold">${thickLabel(r.sheet.t)}</h3>
+                <span class="text-[12px] muted num">${r.sheets} ${r.sheets === 1 ? 'skiva' : 'skivor'} à ${fmt(r.sheet.L)} × ${fmt(r.sheet.W)}</span>
+                <label class="ml-auto flex items-center gap-2 text-[12px] muted">Pris per skiva
+                    <span class="fld-unit w-28"><input type="number" min="0" class="fld !py-1" data-price="${key}" value="${own ? state.settings.prices[key] : ''}" placeholder="${state.settings.price}"><span class="unit">kr</span></span>
+                </label>
+                <span class="num text-[13px] w-20 text-right">${fmtKr(r.cost)}</span>
+            </div>
+            <div class="grid gap-4 xl:grid-cols-2"></div>`;
+        const grid = sec.lastElementChild;
         let sheetNo = 0;
         r.bins.forEach(b => {
-            const card = document.createElement('div');
-            card.className = 'glass-card mb-4 p-1';
-            const title = b.kind === 'offcut' ? `Spillbit ${fmt(b.L)}×${fmt(b.W)}` : `Skiva ${++sheetNo}`;
-            const u = Math.round(b.util * 100);
-            card.innerHTML = `<div class="px-3 py-2 text-[10px] font-bold tracking-widest text-gray-500 uppercase flex flex-wrap justify-between items-center gap-2">
-                <span>${title} · ${b.placements.length} delar</span>
-                <span class="flex gap-2"><span class="num bg-black/30 px-2 py-0.5 rounded ${u >= 70 ? 'text-emerald-400' : u >= 40 ? 'text-yellow-400' : 'text-red-400'}">${u} %</span>
-                ${b.kind === 'offcut' ? '<span class="bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded">Från spillager</span>' : ''}</span></div>`;
+            const fig = document.createElement('figure');
+            const title = b.kind === 'offcut' ? `Spillbit ${fmt(b.L)} × ${fmt(b.W)}` : `Skiva ${++sheetNo}`;
             const c = sheetCanvas(b, 1000, 'dark');
             c.className = 'sheet-canvas';
             c.setAttribute('role', 'img');
-            c.setAttribute('aria-label', `${title}: ${b.placements.map(p => '#' + p.piece.nr).join(', ')}`);
-            card.appendChild(c);
-            group.appendChild(card);
+            c.setAttribute('aria-label', `${title}: delar ${b.placements.map(p => p.piece.nr).join(', ')}`);
+            fig.appendChild(c);
+            const cap = document.createElement('figcaption');
+            cap.className = 'mt-1.5 flex justify-between text-[12px] muted';
+            cap.innerHTML = `<span>${title} · ${b.placements.length} delar</span><span class="num">${Math.round(b.util * 100)} % nyttjat</span>`;
+            fig.appendChild(cap);
+            grid.appendChild(fig);
         });
-        resOpt.appendChild(group);
+        resOpt.appendChild(sec);
     });
-    if (!opt.materials.length) resOpt.innerHTML = '<p class="text-sm text-gray-500">Inget att optimera.</p>';
+    if (!opt.materials.length) resOpt.innerHTML = '<p class="muted">Inget att optimera.</p>';
+    $('offcutCount').textContent = state.offcuts.length ? `${state.offcuts.length} i lager${opt.offcutsUsed.length ? `, ${opt.offcutsUsed.length} används` : ''}` : '';
     const saveBtn = $('btnSaveOffcuts');
     saveBtn.hidden = !opt.newOffcuts.length && !opt.offcutsUsed.length;
-    saveBtn.textContent = `Uppdatera spillager (+${opt.newOffcuts.length}${opt.offcutsUsed.length ? `, −${opt.offcutsUsed.length}` : ''})`;
+    saveBtn.textContent = `Spara spillbitar (${opt.newOffcuts.length})`;
 
-    // Beslag med butikslänkar
-    $('resHardwareSection').hidden = !col.hardware.length;
+    // Beslag
+    const hwCount = col.hardware.length;
+    $('hardwareEmpty').hidden = !!hwCount;
+    $('hardwareBody').hidden = !hwCount;
     $('resHardwareList').innerHTML = col.hardware.map(h => {
         const url = shopUrl(state.settings, h.query);
-        return `<tr><td class="font-medium text-gray-200">${esc(h.name)}</td><td class="text-center text-orange-400 font-bold num">${h.qty}</td><td class="text-gray-500">${esc(h.unit)}</td>
-            <td class="text-right">${url ? `<a href="${esc(url)}" target="_blank" rel="noopener sponsored" class="text-blue-400 hover:text-blue-300 text-xs font-semibold whitespace-nowrap">Sök pris →</a>` : ''}</td></tr>`;
+        return `<tr><td>${esc(h.name)}</td><td class="num text-right">${h.qty}</td><td class="muted">${esc(h.unit)}</td>
+            <td class="text-right">${url ? `<a href="${esc(url)}" target="_blank" rel="noopener sponsored" class="text-[12px] whitespace-nowrap hover:underline" style="color: var(--accent)">Sök pris ↗</a>` : ''}</td></tr>`;
     }).join('');
-    const shop = SHOPS[state.settings.shop];
-    $('shopNote').textContent = shopUrl(state.settings, 'x') ? `Länkarna söker hos ${shop.name}. Byt butik under Inställningar.` : 'Ange en giltig länkmall under Inställningar för att visa köplänkar.';
+    $('shopNote').textContent = shopUrl(state.settings, 'x') ? `Länkarna söker hos ${SHOPS[state.settings.shop].name}.` : 'Ange en länkmall under Inställningar för att visa köplänkar.';
 
     // Borrschema
-    $('resDrillSection').hidden = !col.drillings.length;
-    $('resDrillList').innerHTML = col.drillings.map(d => `<tr><td>${esc(d.item)}</td><td>${esc(d.door)}</td><td class="text-center num">${d.count}</td>
-        <td class="num whitespace-nowrap">${fmt(d.h)} × ${fmt(d.w)}</td><td>${esc(d.side)}</td><td class="num whitespace-nowrap text-orange-300">${d.holes.map(fmt).join(' · ')}</td></tr>`).join('');
+    $('drillEmpty').hidden = !!col.drillings.length;
+    $('drillBody').hidden = !col.drillings.length;
+    $('resDrillList').innerHTML = col.drillings.map(d => `<tr><td>${esc(d.item)}</td><td class="muted">${esc(d.door)}</td><td class="num text-right">${d.count}</td>
+        <td class="num whitespace-nowrap">${fmt(d.h)} × ${fmt(d.w)}</td><td class="muted">${esc(d.side)}</td><td class="num whitespace-nowrap">${d.holes.map(fmt).join(' · ')}</td></tr>`).join('');
+
+    // Antal i flikarna
+    const counts = { list: col.rows.length, sheets: opt.sheets + opt.offcutsUsed.length, hardware: hwCount, drill: col.drillings.length };
+    document.querySelectorAll('[data-tab]').forEach(t => {
+        const base = t.dataset.label || (t.dataset.label = t.textContent.trim());
+        const c = counts[t.dataset.tab];
+        t.innerHTML = `${esc(base)}${c ? ` <span class="faint num text-[12px] ml-0.5">${c}</span>` : ''}`;
+    });
+}
+
+function setTab(tab) {
+    if (!['list', 'sheets', 'hardware', 'drill'].includes(tab)) tab = 'list';
+    state.tab = tab;
+    store.set(KEYS.tab, tab);
+    document.querySelectorAll('[data-tab]').forEach(t => { const on = t.dataset.tab === tab; t.classList.toggle('is-on', on); t.setAttribute('aria-selected', on); });
+    document.querySelectorAll('[data-panel]').forEach(p => { p.hidden = p.dataset.panel !== tab; });
 }
 
 // ---------------------------------------------------------------------------
-// Hjälpare: toast, nedladdning, urklipp
+// Toast, ångra, nedladdning, urklipp
 // ---------------------------------------------------------------------------
 let toastTimer, undoFn = null;
 function toast(msg, isError = false, undo = null) {
     undoFn = undo;
     $('toastUndo').hidden = !undo;
     $('toastMsg').textContent = msg;
-    $('toastIcon').className = `p-1.5 rounded-full ${isError ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`;
+    $('toastDot').style.background = isError ? 'var(--danger)' : '#4fbf8a';
     $('toast').classList.remove('is-hidden');
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => { $('toast').classList.add('is-hidden'); undoFn = null; }, undo ? 8000 : 3200);
 }
 
-// I en inbäddad Claude-artifact går nedladdningar via värdens API; på en vanlig webbsida via en länk.
-let downloadsCap;
-function getDownloads() {
-    if (typeof window.claude?.use !== 'function') return Promise.resolve(null);
-    return (downloadsCap ??= window.claude.use('downloads').catch(() => null));
-}
-
-async function download(filename, content, type) {
-    const cap = await getDownloads();
-    if (cap) {
-        try {
-            // Värden tillåter bara vissa filändelser, t.ex. json och csv
-            await cap.save({ filename: filename.replace(/\.cutyard$/, '.cutyard.json'), data: content });
-            return true;
-        } catch (e) {
-            if (e?.code !== 'declined') toast('Filen kunde inte sparas här.', true);
-            return false;
-        }
-    }
-    const url = URL.createObjectURL(new Blob([content], { type }));
-    const a = document.createElement('a');
-    a.href = url; a.download = filename;
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-    return true;
-}
-
 // Ångra: sparar en kopia av det som kan ändras innan en borttagning eller ersättning.
 function snapshot() {
-    return structuredClone({ project: state.project, materials: state.materials, offcuts: state.offcuts, settings: state.settings, activeId: state.activeId });
+    return structuredClone({ project: state.project, offcuts: state.offcuts, settings: state.settings, activeId: state.activeId });
 }
 function restore(snap) {
     Object.assign(state, snap);
     $('projectName').value = state.project.name;
     selectItem(state.activeId);
+    if (!$('modalOffcuts').hidden) renderOffcuts();
 }
 function withUndo(msg, change) {
     const snap = snapshot();
@@ -423,6 +408,33 @@ function removeItem(id) {
     });
 }
 
+// I en inbäddad Claude-artifact går nedladdningar via värdens API; på en vanlig webbsida via en länk.
+let downloadsCap;
+function getDownloads() {
+    if (typeof window.claude?.use !== 'function') return Promise.resolve(null);
+    return (downloadsCap ??= window.claude.use('downloads').catch(() => null));
+}
+
+async function download(filename, content, type) {
+    const cap = await getDownloads();
+    if (cap) {
+        try {
+            // Värden tillåter bara vissa filändelser, t.ex. json och csv
+            await cap.save({ filename: filename.replace(/\.cutyard$/, '.cutyard.json'), data: content });
+            return true;
+        } catch (e) {
+            if (e?.code !== 'declined') toast('Filen kunde inte sparas här.', true);
+            return false;
+        }
+    }
+    const url = URL.createObjectURL(new Blob([content], { type }));
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    return true;
+}
+
 async function copyText(text, okMsg) {
     try {
         await navigator.clipboard.writeText(text);
@@ -434,7 +446,7 @@ async function copyText(text, okMsg) {
         let ok = false;
         try { ok = document.execCommand('copy'); } catch { /* ignoreras */ }
         ta.remove();
-        toast(ok ? okMsg : 'Kunde inte kopiera. Använd Exportera CSV.', !ok);
+        toast(ok ? okMsg : 'Kunde inte kopiera. Använd CSV i stället.', !ok);
     }
 }
 
@@ -450,26 +462,24 @@ function persist() {
     persistTimer = setTimeout(() => {
         store.set(KEYS.project, state.project);
         store.set(KEYS.settings, state.settings);
-        store.set(KEYS.materials, state.materials);
         store.set(KEYS.offcuts, state.offcuts);
     }, 300);
 }
 
 function projectFile() {
-    return { app: 'cutyard', version: 3, savedAt: new Date().toISOString(), project: state.project, settings: state.settings, materials: state.materials, offcuts: state.offcuts };
+    return { app: 'cutyard', version: 4, savedAt: new Date().toISOString(), project: state.project, settings: state.settings, offcuts: state.offcuts };
 }
 
-// Äldre filer (version 1–2) sparade formulärfälten direkt.
+// Filer från version 1–2 sparade formulärfälten direkt.
 function migrateV2(data) {
     const v = id => data.inputs?.[id];
     const num = id => (v(id) === '' || v(id) == null ? undefined : +v(id));
     const drop = o => Object.fromEntries(Object.entries(o).filter(([, x]) => x !== undefined && Number.isFinite(x)));
-    const items = [
-        { ...makeItem('cabinet', 'Skåp', { ...drop({ w: num('cabW'), h: num('cabH'), d: num('cabD'), shelves: num('cabShelves') }), fronts: 'none', edgeBand: v('cabEdgeBand') !== false }), qty: num('cabQty') || 1 },
-        { ...makeItem('drawer', 'Lådor', drop({ w: num('drwW'), h: num('drwH'), d: num('drwD'), clearance: num('drwClearance'), groove: num('drwGroove') })), qty: num('drwQty') || 1 },
-        { ...makeItem('shaker', 'Shaker-dörr', drop({ w: num('shkW'), h: num('shkH'), frame: num('shkFrame'), tenon: num('shkTenon') })), qty: num('shkQty') || 1 }
-    ];
-    return { name: 'Importerat projekt', items };
+    return { name: 'Importerat projekt', items: [
+        { ...makeItem('cabinet', 'Skåp', { ...drop({ w: num('cabW'), h: num('cabH'), d: num('cabD'), shelves: num('cabShelves'), carcassT: num('cabMatStom'), backT: num('cabMatBack') }), fronts: 'none', edgeBand: v('cabEdgeBand') !== false }), qty: num('cabQty') || 1 },
+        { ...makeItem('drawer', 'Lådor', drop({ w: num('drwW'), h: num('drwH'), d: num('drwD'), sideT: num('drwMatSide'), botT: num('drwMatBot'), clearance: num('drwClearance'), groove: num('drwGroove') })), qty: num('drwQty') || 1 },
+        { ...makeItem('shaker', 'Shaker-dörr', drop({ w: num('shkW'), h: num('shkH'), frame: num('shkFrame'), tenon: num('shkTenon'), panelT: num('shkMatPanel') })), qty: num('shkQty') || 1 }
+    ] };
 }
 
 function loadProjectData(data) {
@@ -478,28 +488,25 @@ function loadProjectData(data) {
     if (data.project) project = sanitizeProject(data.project);
     else if (data.inputs) project = sanitizeProject(migrateV2(data));
     if (!project) throw new Error('format');
-    if (data.materials) state.materials = sanitizeMaterials(data.materials);
     if (data.settings) state.settings = sanitizeSettings({ ...state.settings, ...data.settings });
-    if (data.offcuts) state.offcuts = sanitizeOffcuts(data.offcuts, state.materials);
+    if (data.offcuts) state.offcuts = sanitizeOffcuts(data.offcuts);
     state.project = project;
     $('projectName').value = project.name;
     selectItem(project.items[0]?.id);
 }
 
 // ---------------------------------------------------------------------------
-// Modaler
+// Dialoger
 // ---------------------------------------------------------------------------
+const MODALS = ['modalSettings', 'modalOffcuts', 'modalNew'];
 let lastFocus = null;
 function openModal(id) { lastFocus = document.activeElement; $(id).hidden = false; $(id).querySelector('input,select,button')?.focus(); }
 function closeModal(id) { $(id).hidden = true; lastFocus?.focus?.(); }
-document.addEventListener('keydown', e => {
-    if (e.key !== 'Escape') return;
-    ['modalSettings', 'modalMaterials', 'modalNew'].forEach(id => { if (!$(id).hidden) closeModal(id); });
-});
-['modalSettings', 'modalMaterials', 'modalNew'].forEach(id => $(id).addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(id); }));
+document.addEventListener('keydown', e => { if (e.key === 'Escape') MODALS.forEach(id => { if (!$(id).hidden) closeModal(id); }); });
+MODALS.forEach(id => $(id).addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(id); }));
 
 // Inställningar
-const SETTING_FIELDS = { setKerf: 'kerf', setTrim: 'trim', setEdgeThick: 'edgeThick', setReveal: 'reveal', setFrontGap: 'frontGap', setMinOffcutL: 'minOffcutL', setMinOffcutW: 'minOffcutW' };
+const SETTING_FIELDS = { setSheetL: 'sheetL', setSheetW: 'sheetW', setPrice: 'price', setKerf: 'kerf', setTrim: 'trim', setEdgeThick: 'edgeThick', setReveal: 'reveal', setFrontGap: 'frontGap', setMinOffcutL: 'minOffcutL', setMinOffcutW: 'minOffcutW' };
 function fillSettings() {
     for (const [id, k] of Object.entries(SETTING_FIELDS)) $(id).value = state.settings[k];
     $('setGrainLock').checked = state.settings.grainLock;
@@ -511,7 +518,7 @@ $('setShop').addEventListener('change', () => { $('setShopTemplateWrap').hidden 
 $('btnSettings').addEventListener('click', () => { fillSettings(); openModal('modalSettings'); });
 $('btnCloseSettings').addEventListener('click', () => closeModal('modalSettings'));
 $('btnSaveSettings').addEventListener('click', () => {
-    const next = { grainLock: $('setGrainLock').checked, shop: $('setShop').value, shopTemplate: $('setShopTemplate').value.trim() };
+    const next = { ...state.settings, grainLock: $('setGrainLock').checked, shop: $('setShop').value, shopTemplate: $('setShopTemplate').value.trim() };
     for (const [id, k] of Object.entries(SETTING_FIELDS)) next[k] = $(id).value === '' ? DEFAULT_SETTINGS[k] : $(id).value;
     if (next.shop === 'custom' && !/^https:\/\/.+\{q\}/.test(next.shopTemplate)) { toast('Länkmallen måste börja med https:// och innehålla {q}.', true); return; }
     state.settings = sanitizeSettings(next);
@@ -520,74 +527,45 @@ $('btnSaveSettings').addEventListener('click', () => {
     toast('Inställningar sparade');
 });
 
-// Material och spillager (redigeras i en arbetskopia tills Spara)
-let draftMats = [], draftOffcuts = [];
-function renderMaterialModal() {
-    const cell = (i, k, type, extra = '') => `<input data-i="${i}" data-k="${k}" type="${type}" class="fld ${type === 'text' ? 'fld-text text-sm' : '!px-2'}" value="${esc(draftMats[i][k])}" ${extra}>`;
-    const box = (i, k) => `<span class="check-wrap"><input data-i="${i}" data-k="${k}" type="checkbox" class="check"${draftMats[i][k] ? ' checked' : ''}>${CHECK_SVG}</span>`;
-    $('matRows').innerHTML = draftMats.map((m, i) => `<tr>
-        <td class="min-w-[180px]">${cell(i, 'name', 'text', 'maxlength="60" aria-label="Namn"')}</td>
-        <td class="w-20">${cell(i, 'thick', 'number', 'min="1" step="0.5" aria-label="Tjocklek mm"')}</td>
-        <td class="w-24">${cell(i, 'L', 'number', 'min="100" aria-label="Längd mm"')}</td>
-        <td class="w-24">${cell(i, 'W', 'number', 'min="100" aria-label="Bredd mm"')}</td>
-        <td class="w-24">${cell(i, 'price', 'number', 'min="0" aria-label="Pris kr"')}</td>
-        <td class="text-center">${box(i, 'grain')}</td><td class="text-center">${box(i, 'edgeable')}</td>
-        <td><button type="button" data-del="${i}" class="text-gray-500 hover:text-red-400 px-2" aria-label="Ta bort ${esc(materialLabel(m))}">✕</button></td></tr>`).join('');
-    $('newOffMat').innerHTML = draftMats.map(m => `<option value="${esc(m.id)}">${esc(materialLabel(m))}</option>`).join('');
-    const label = id => { const m = draftMats.find(x => x.id === id); return m ? materialLabel(m) : '?'; };
-    $('offcutList').innerHTML = draftOffcuts.length ? draftOffcuts.map((o, i) => `<span class="chip chip-idle !py-1 text-xs"><span class="num">${fmt(o.l)}×${fmt(o.w)}</span><span class="text-gray-500">${esc(label(o.mat))}</span><button type="button" data-deloff="${i}" class="hover:text-red-400" aria-label="Ta bort spillbit">✕</button></span>`).join('')
-        : '<span class="text-xs text-gray-500">Inga sparade spillbitar.</span>';
-}
-$('matRows').addEventListener('input', e => {
-    const { i, k } = e.target.dataset;
-    if (i == null) return;
-    draftMats[+i][k] = e.target.type === 'checkbox' ? e.target.checked : e.target.type === 'number' ? +e.target.value : e.target.value;
-});
-$('matRows').addEventListener('click', e => {
-    const i = e.target.closest('[data-del]')?.dataset.del;
-    if (i == null) return;
-    if (draftMats.length <= 1) { toast('Minst ett material behövs.', true); return; }
-    const id = draftMats[+i].id;
-    draftMats.splice(+i, 1);
-    draftOffcuts = draftOffcuts.filter(o => o.mat !== id);
-    renderMaterialModal();
-});
-$('offcutList').addEventListener('click', e => {
-    const i = e.target.closest('[data-deloff]')?.dataset.deloff;
-    if (i == null) return;
-    draftOffcuts.splice(+i, 1);
-    renderMaterialModal();
-});
-$('btnAddMaterial').addEventListener('click', () => { draftMats.push({ id: uid('mat'), name: 'Nytt material', thick: 18, L: 2440, W: 1220, price: 0, grain: false, edgeable: true }); renderMaterialModal(); });
-$('btnResetMaterials').addEventListener('click', () => { draftMats = DEFAULT_MATERIALS.map(m => ({ ...m })); draftOffcuts = draftOffcuts.filter(o => draftMats.some(m => m.id === o.mat)); renderMaterialModal(); });
-$('btnAddOffcut').addEventListener('click', () => {
-    const l = +$('newOffL').value, w = +$('newOffW').value;
-    if (!(l > 0 && w > 0)) { toast('Ange längd och bredd för spillbiten.', true); return; }
-    draftOffcuts.push({ id: uid('off'), mat: $('newOffMat').value, l: Math.max(l, w), w: Math.min(l, w) });
-    $('newOffL').value = ''; $('newOffW').value = '';
-    renderMaterialModal();
-});
-$('btnMaterials').addEventListener('click', () => {
-    draftMats = state.materials.map(m => ({ ...m }));
-    draftOffcuts = state.offcuts.map(o => ({ ...o }));
-    renderMaterialModal();
-    openModal('modalMaterials');
-});
-$('btnCloseMaterials').addEventListener('click', () => closeModal('modalMaterials'));
-$('btnSaveMaterials').addEventListener('click', () => {
-    closeModal('modalMaterials');
-    withUndo('Materialbiblioteket sparat', () => {
-        state.materials = sanitizeMaterials(draftMats);
-        state.offcuts = sanitizeOffcuts(draftOffcuts, state.materials);
-        if (activeItem()) renderForm();
-        recompute();
-    });
+// Pris per tjocklek (direkt i skärschemafliken)
+$('resOpt').addEventListener('change', e => {
+    const key = e.target.dataset.price;
+    if (key == null) return;
+    const raw = e.target.value.trim();
+    const prices = { ...state.settings.prices };
+    if (raw === '' || !Number.isFinite(+raw) || +raw < 0) delete prices[key]; else prices[key] = +raw;
+    state.settings = sanitizeSettings({ ...state.settings, prices });
+    recompute();
 });
 
+// Spillager
+function renderOffcuts() {
+    const list = [...state.offcuts].sort((a, b) => b.t - a.t || b.l * b.w - a.l * a.w);
+    $('offcutList').innerHTML = list.length ? `<div class="max-h-72 overflow-y-auto"><table class="tbl">
+        <thead><tr><th>Tjocklek</th><th>Mått</th><th></th></tr></thead>
+        <tbody>${list.map(o => `<tr><td class="num">${thickLabel(o.t)}</td><td class="num">${fmt(o.l)} × ${fmt(o.w)} mm</td>
+            <td class="text-right"><button type="button" data-deloff="${esc(o.id)}" class="muted hover:text-[var(--danger)] px-1" aria-label="Ta bort spillbit">✕</button></td></tr>`).join('')}</tbody></table></div>`
+        : '<p class="muted text-[13px]">Inga sparade spillbitar.</p>';
+}
+$('btnOffcuts').addEventListener('click', () => { renderOffcuts(); openModal('modalOffcuts'); });
+$('btnCloseOffcuts').addEventListener('click', () => closeModal('modalOffcuts'));
+$('offcutList').addEventListener('click', e => {
+    const id = e.target.closest('[data-deloff]')?.dataset.deloff;
+    if (!id) return;
+    withUndo('Spillbiten borttagen', () => { state.offcuts = state.offcuts.filter(o => o.id !== id); renderOffcuts(); recompute(); });
+});
+$('btnAddOffcut').addEventListener('click', () => {
+    const t = +$('newOffT').value, l = +$('newOffL').value, w = +$('newOffW').value;
+    if (!(t > 0 && l > 0 && w > 0)) { toast('Ange tjocklek, längd och bredd.', true); return; }
+    state.offcuts = sanitizeOffcuts([...state.offcuts, { id: uid('off'), t, l: Math.max(l, w), w: Math.min(l, w) }]);
+    $('newOffL').value = ''; $('newOffW').value = '';
+    renderOffcuts();
+    recompute();
+});
 $('btnSaveOffcuts').addEventListener('click', () => {
     const { opt } = state.last;
     const used = new Set(opt.offcutsUsed);
-    withUndo(`Spillager uppdaterat: ${used.size} förbrukade, ${opt.newOffcuts.length} nya`, () => {
+    withUndo(`Spillager uppdaterat: ${used.size} använda, ${opt.newOffcuts.length} nya`, () => {
         state.offcuts = state.offcuts.filter(o => !used.has(o.id)).concat(opt.newOffcuts.map(o => ({ id: uid('off'), ...o })));
         recompute();
     });
@@ -609,11 +587,11 @@ $('itemForm').addEventListener('change', e => {
 });
 $('itemForm').addEventListener('submit', e => e.preventDefault());
 
-$('itemName').addEventListener('input', e => { activeItem().name = e.target.value.trim() || TYPE_LABEL[activeItem().type]; renderChips(); scheduleRecompute(); });
-$('itemQty').addEventListener('input', e => { const v = Math.round(+e.target.value); if (v >= 1) { activeItem().qty = Math.min(999, v); renderChips(); scheduleRecompute(); } });
+$('itemName').addEventListener('input', e => { activeItem().name = e.target.value.trim() || TYPE_LABEL[activeItem().type]; renderItemList(); scheduleRecompute(); });
+$('itemQty').addEventListener('input', e => { const v = Math.round(+e.target.value); if (v >= 1) { activeItem().qty = Math.min(999, v); renderItemList(); scheduleRecompute(); } });
 $('projectName').addEventListener('input', e => { state.project.name = e.target.value.trim() || 'Mitt projekt'; persist(); });
 
-$('itemChips').addEventListener('click', e => {
+$('itemList').addEventListener('click', e => {
     const rm = e.target.closest('[data-remove]')?.dataset.remove;
     if (rm) { removeItem(rm); return; }
     const id = e.target.closest('[data-item]')?.dataset.item;
@@ -633,15 +611,14 @@ $('btnRestoreParts').addEventListener('click', () => {
     const item = activeItem();
     withUndo('Alla delar är med i kaplistan igen', () => { item.excluded = {}; recompute(); });
 });
-
-$('btnShowResults').addEventListener('click', () => $('resultSection').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }));
 $('showFronts').addEventListener('change', e => viewer.setShowFronts(e.target.checked));
 
 document.querySelectorAll('[data-scope]').forEach(b => b.addEventListener('click', () => {
     state.scope = b.dataset.scope;
-    document.querySelectorAll('[data-scope]').forEach(x => x.classList.toggle('seg-on', x === b));
+    document.querySelectorAll('[data-scope]').forEach(x => x.classList.toggle('is-on', x === b));
     recompute();
 }));
+document.querySelectorAll('[data-tab]').forEach(t => t.addEventListener('click', () => setTab(t.dataset.tab)));
 
 // Nytt projekt
 $('btnNew').addEventListener('click', () => openModal('modalNew'));
@@ -673,11 +650,11 @@ $('fileUpload').addEventListener('change', e => {
 // Export
 $('btnExportCsv').addEventListener('click', async () => {
     if (!state.last?.col.rows.length) { toast('Kaplistan är tom', true); return; }
-    if (await download(`${safeName(state.project.name)}_kaplista_${today()}.csv`, buildCsv(state.last.col, M()), 'text/csv;charset=utf-8')) toast('CSV-filen sparad');
+    if (await download(`${safeName(state.project.name)}_kaplista_${today()}.csv`, buildCsv(state.last.col), 'text/csv;charset=utf-8')) toast('CSV-filen sparad');
 });
 $('btnCopyCsv').addEventListener('click', () => {
     if (!state.last?.col.rows.length) { toast('Kaplistan är tom', true); return; }
-    copyText(buildCsv(state.last.col, M(), { sep: '\t', bom: false }), 'Kaplistan kopierad – klistra in i Excel');
+    copyText(buildCsv(state.last.col, { sep: '\t', bom: false }), 'Kaplistan kopierad – klistra in i Excel');
 });
 $('btnBuyAll').addEventListener('click', () => {
     const lines = state.last.col.hardware.map(h => {
@@ -695,7 +672,7 @@ $('btnPrint').addEventListener('click', async () => {
         buildPrint($('printArea'), {
             projectName: state.project.name,
             scopeLabel: state.scope === 'item' ? activeItem().name : `${state.project.items.length} objekt`,
-            col: state.last.col, opt: state.last.opt, M: M(), withLabels: $('printLabels').checked
+            col: state.last.col, opt: state.last.opt, withLabels: true
         });
         window.print();
     } catch (err) {
@@ -720,8 +697,7 @@ function init() {
     updateOnline();
     const legacy = store.get('cutyardSettings'); // version 1
     state.settings = sanitizeSettings(store.get(KEYS.settings) || legacy || {});
-    state.materials = sanitizeMaterials(store.get(KEYS.materials));
-    state.offcuts = sanitizeOffcuts(store.get(KEYS.offcuts), state.materials);
+    state.offcuts = sanitizeOffcuts(store.get(KEYS.offcuts));
     state.project = sanitizeProject(store.get(KEYS.project)) || exampleProject();
     state.activeId = store.get(KEYS.active);
     $('projectName').value = state.project.name;
@@ -730,6 +706,7 @@ function init() {
         if (item.excluded[key]) delete item.excluded[key]; else item.excluded[key] = true;
         recompute();
     });
+    setTab(store.get(KEYS.tab) || 'list');
     selectItem(state.activeId);
     if (document.fonts?.ready) document.fonts.ready.then(() => recompute());
 }

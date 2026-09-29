@@ -2,7 +2,7 @@
 import { fmt } from './core.js';
 
 const THEMES = {
-    dark: { bg: '#1e1e1e', trim: 'rgba(255,255,255,0.06)', a: '#f59e0b', b: '#d97706', stroke: '#000', text: '#000', sub: 'rgba(0,0,0,0.7)', left: 'rgba(52,211,153,0.9)' },
+    dark: { bg: '#0e131b', trim: 'rgba(255,255,255,0.04)', a: '#22324a', b: '#22324a', stroke: 'rgba(91,147,245,0.75)', text: '#e6e9ef', sub: '#8b93a3', left: 'rgba(95,191,154,0.8)' },
     light: { bg: '#ffffff', trim: '#e5e5e5', a: '#f3f4f6', b: '#e5e7eb', stroke: '#000', text: '#000', sub: '#333', left: '#059669' }
 };
 
@@ -32,13 +32,9 @@ export function drawSheet(canvas, bin, theme = 'dark') {
 
     for (const p of bin.placements) {
         const x = p.x * s, y = p.y * s, w = p.dl * s, h = p.dw * s;
-        if (theme === 'dark') {
-            const g = ctx.createLinearGradient(x, y, x + w, y + h);
-            g.addColorStop(0, T.a); g.addColorStop(1, T.b);
-            ctx.fillStyle = g;
-        } else ctx.fillStyle = T.a;
+        ctx.fillStyle = T.a;
         ctx.fillRect(x, y, w, h);
-        ctx.strokeStyle = T.stroke; ctx.lineWidth = theme === 'dark' ? 1 : 1.5;
+        ctx.strokeStyle = T.stroke; ctx.lineWidth = theme === 'dark' ? 1.25 : 1.5;
         ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
         ctx.fillStyle = T.text; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         const nrSize = Math.max(10, Math.min(22, Math.min(w, h) * 0.35));

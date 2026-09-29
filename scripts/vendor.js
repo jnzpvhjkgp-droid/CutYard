@@ -7,7 +7,6 @@ const files = {
     'node_modules/three/build/three.min.js': 'vendor/three.min.js',
     'node_modules/three/examples/js/controls/OrbitControls.js': 'vendor/OrbitControls.js',
     'node_modules/qrcode-generator/dist/qrcode.mjs': 'vendor/qrcode.mjs',
-    'node_modules/@fontsource/inter/files/inter-latin-300-normal.woff2': 'assets/fonts/inter-300.woff2',
     'node_modules/@fontsource/inter/files/inter-latin-400-normal.woff2': 'assets/fonts/inter-400.woff2',
     'node_modules/@fontsource/inter/files/inter-latin-500-normal.woff2': 'assets/fonts/inter-500.woff2',
     'node_modules/@fontsource/inter/files/inter-latin-600-normal.woff2': 'assets/fonts/inter-600.woff2',
