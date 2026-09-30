@@ -45,7 +45,7 @@ const activeItem = () => state.project.items.find(i => i.id === state.activeId) 
 // Formulärschema per objekttyp. Grupper → rader → fält. show(p) styr synlighet.
 // ---------------------------------------------------------------------------
 const TYPE_COLOR = { cabinet: '#5b93f5', drawer: '#a58bf0', shaker: '#5fbf9a', list: '#e0a458' };
-const TYPE_LABEL = { cabinet: 'Skåp', drawer: 'Lådor', shaker: 'Shaker-dörr', list: 'Egen kaplista' };
+const TYPE_LABEL = { cabinet: 'Skåp', drawer: 'Lådor till skåp', shaker: 'Shaker-dörr', list: 'Fria delar' };
 
 const n = (key, label, o = {}) => ({ kind: 'num', key, label, unit: 'mm', ...o });
 const sel = (key, label, options, o = {}) => ({ kind: 'select', key, label, options, ...o });
@@ -81,85 +81,87 @@ const isDrawers = p => p.fronts === 'drawers';
 const hasFronts = p => p.fronts !== 'none';
 const isShakerFront = p => hasFronts(p) && p.frontStyle === 'shaker';
 
+// adv: true = gruppen ligger under "Fler inställningar". Standardvärdena räcker för de flesta.
 const SCHEMA = {
     cabinet: [
-        group('Yttermått', [
-            [sel('kind', 'Skåptyp', Object.entries(CABINET_KINDS).map(([k, v]) => [k, v.label]), { hint: 'Byter till typens standardmått. Går att ångra.' }),
-             n('plinthH', 'Sockel', { min: 0, max: 300, hint: '0 = ingen sockel' })],
+        group('Skåp', [
+            [sel('kind', 'Skåptyp', Object.entries(CABINET_KINDS).map(([k, v]) => [k, v.label]))],
             [n('w', 'Bredd', { min: 100 }), n('h', 'Höjd', { min: 100 }), n('d', 'Djup', { min: 100 })]
-        ], { desc: 'Skåpets mått utvändigt, utan fronter och sockel. Sockeln läggs under skåpet och dras in 50 mm från framkanten.' }),
-        group('Stomme', [
-            [n('carcassT', 'Skivtjocklek', { min: 3, step: 0.5 }), n('backT', 'Bakstycke', { min: 0, step: 0.5, hint: '0 = inget' }),
-             sel('backMount', 'Bakstycket', [['surface', 'Skruvas på'], ['groove', 'I spår']], { show: p => p.backT > 0, hint: 'Spår: 10 mm in, 8 mm djupt' })],
-            [chk('edgeBand', 'Kantlist på framkanterna', { hint: 'Listens tjocklek dras av från delarnas mått.' })]
-        ], { desc: 'Sidor, topp och botten sågas ur samma skiva. Bakstycket är en tunnare skiva som antingen skruvas på baksidan eller sitter i ett spår.' }),
-        group('Inredning', [
-            [n('shelves', 'Hyllplan per fack', { min: 0, max: 20, int: true, unit: 'st' }), n('dividers', 'Mellanväggar', { min: 0, max: 4, int: true, unit: 'st', hint: 'Delar skåpet i fack' })],
-            [chk('shelfHoles', 'Borra hyllhål (32-mm-systemet)', { show: p => p.shelves > 0, hint: 'Hålraderna hamnar i Borrschemat.' })],
-            [chk('rail', 'Garderobsstång i varje fack', { show: p => p.kind === 'tall' })]
-        ], { show: p => !isDrawers(p), desc: 'Hyllplan och mellanväggar. Hyllplanen går att flytta om du borrar hyllhål.' }),
+        ], { desc: 'Utvändiga mått, utan fronter och sockel.' }),
         group('Fronter', [
-            [sel('fronts', 'Fronter', [['none', 'Inga fronter'], ['doors', 'Dörrar'], ['drawers', 'Lådor']]),
-             sel('doorCount', 'Antal dörrar', [['auto', 'Auto'], ['1', '1 dörr'], ['2', '2 dörrar']], { show: p => p.fronts === 'doors', hint: 'Auto: 2 dörrar över 600 mm' }),
+            [sel('fronts', 'Framsida', [['none', 'Öppet skåp'], ['doors', 'Dörrar'], ['drawers', 'Lådor']]),
+             sel('doorCount', 'Antal dörrar', [['auto', 'Auto'], ['1', '1 dörr'], ['2', '2 dörrar']], { show: p => p.fronts === 'doors' }),
              n('drawerCount', 'Antal lådor', { min: 1, max: 8, int: true, unit: 'st', show: isDrawers })],
-            [sel('frontStyle', 'Utförande', [['flat', 'Slät skiva'], ['shaker', 'Shaker (ram och fyllning)']], { show: hasFronts }),
-             n('frontT', 'Fronttjocklek', { min: 3, step: 0.5, show: hasFronts })],
-            [n('frame', 'Rambredd', { min: 20, show: isShakerFront, hint: 'Ramens synliga bredd' }),
-             n('tenon', 'Tappdjup', { min: 0, show: isShakerFront, hint: 'Enligt din fräsats' }),
-             n('panelT', 'Fyllning', { min: 2, step: 0.5, show: isShakerFront, hint: 'Fyllningens tjocklek' })],
-            [sel('frameStock', 'Ramdelarna sågas ur', STOCK_OPTIONS, { show: isShakerFront, hint: 'Virke optimeras på längden' })],
+            [sel('frontStyle', 'Utförande', [['flat', 'Slät skiva'], ['shaker', 'Shaker (ram och fyllning)']], { show: hasFronts })],
+            [sel('slideId', 'Lådskenor', slideOptions, { show: isDrawers })]
+        ]),
+        group('Hyllor', [
+            [n('shelves', 'Hyllplan per fack', { min: 0, max: 20, int: true, unit: 'st' }), n('dividers', 'Mellanväggar', { min: 0, max: 4, int: true, unit: 'st' })]
+        ], { show: p => !isDrawers(p) }),
+        group('Sockel och stomme', [
+            [n('plinthH', 'Sockel', { min: 0, max: 300, hint: '0 = ingen sockel' }), n('carcassT', 'Skivtjocklek', { min: 3, step: 0.5 })],
+            [n('backT', 'Bakstycke', { min: 0, step: 0.5, hint: '0 = inget' }),
+             sel('backMount', 'Bakstycket', [['surface', 'Skruvas på'], ['groove', 'I spår']], { show: p => p.backT > 0 })],
+            [chk('edgeBand', 'Kantlist på framkanterna', { hint: 'Listens tjocklek dras av från måtten.' })]
+        ], { adv: true, info: 'Sockeln läggs under skåpet och dras in 50 mm. Bakstycke i spår sitter 10 mm in i ett 8 mm djupt spår i sidor, topp och botten.' }),
+        group('Hyllhål och garderob', [
+            [chk('shelfHoles', 'Borra hyllhål (32-mm-systemet)', { show: p => p.shelves > 0, hint: 'Hålraderna står under Borrning.' })],
+            [chk('rail', 'Garderobsstång i varje fack', { show: p => p.kind === 'tall' })]
+        ], { adv: true, show: p => !isDrawers(p) }),
+        group('Fronter i detalj', [
+            [n('frontT', 'Fronttjocklek', { min: 3, step: 0.5 }), chk('frontBand', 'Kantlist runt fronterna', { show: p => p.frontStyle === 'flat' })],
+            [n('frame', 'Rambredd', { min: 20, show: isShakerFront }), n('tenon', 'Tappdjup', { min: 0, show: isShakerFront, hint: 'Enligt fräsatsen' }),
+             n('panelT', 'Fyllning', { min: 2, step: 0.5, show: isShakerFront })],
             [sel('profile', 'Ramprofil', profileOptions, { show: isShakerFront }), sel('panelStyle', 'Fyllningstyp', panelOptions, { show: isShakerFront })],
-            [html(profilePreview, { show: isShakerFront })],
-            [chk('frontBand', 'Kantlist runt fronterna', { show: p => hasFronts(p) && p.frontStyle === 'flat' })]
-        ], { desc: 'Dörrar eller lådfronter som täcker skåpets framsida. Spelet runt dem ställs in under Inställningar.' }),
-        group('Lådor', [
-            [sel('slideId', 'Lådskenor', slideOptions)],
-            [n('drawerSideT', 'Lådsidor', { min: 3, step: 0.5, hint: 'Tjocklek' }), n('drawerBotT', 'Lådbotten', { min: 2, step: 0.5, hint: 'Tjocklek' }),
-             n('groove', 'Spårdjup', { min: 0, step: 0.5, hint: 'Spåret för bottnen' })],
-            [n('clearance', 'Spel per sida', { min: 0, step: 0.1, show: p => p.slideId === 'custom', hint: 'Mellan skåpsida och lådsida' })],
+            [sel('frameStock', 'Ramdelarna sågas ur', STOCK_OPTIONS, { show: isShakerFront })],
+            [html(profilePreview, { show: isShakerFront })]
+        ], { adv: true, show: hasFronts, info: 'Spelet runt fronterna ställs in under Inställningar. Shaker-ramen består av två stående delar (stiles) och två liggande (rails).' }),
+        group('Lådor i detalj', [
+            [n('drawerSideT', 'Lådsidor', { min: 3, step: 0.5 }), n('drawerBotT', 'Lådbotten', { min: 2, step: 0.5 }), n('groove', 'Spårdjup', { min: 0, step: 0.5 })],
+            [n('clearance', 'Spel per sida', { min: 0, step: 0.1, show: p => p.slideId === 'custom' })],
             [html(slideNote, { cls: 'text-[12px] muted leading-relaxed' })]
-        ], { show: isDrawers, desc: 'Lådlådorna räknas fram automatiskt utifrån skåpets innermått och de skenor du väljer.' }),
+        ], { adv: true, show: isDrawers }),
         group('Skivtyp och ådring', [
             [txt('carcassName', 'Stomme'), txt('backName', 'Bakstycke', { show: p => p.backT > 0 })],
             [txt('frontName', 'Fronter', { show: hasFronts }), txt('panelName', 'Fyllning', { show: isShakerFront })],
             [txt('drawerName', 'Lådsidor', { show: isDrawers }), txt('drawerBotName', 'Lådbotten', { show: isDrawers })],
-            [chk('grain', 'Ådringen ska gå längs delarnas längd', { hint: 'Synliga delar vrids inte på skivan. Dolda delar som lådbottnar och bakstycken vrids ändå.' })]
-        ], { collapsible: true, desc: 'Ge skivorna ett namn om du använder olika sorters skivor med samma tjocklek, t.ex. "Vit melamin" och "Björkplywood". Då hamnar de på olika skivor i skärschemat.' })
+            [chk('grain', 'Ådringen ska gå längs delarnas längd', { hint: 'Synliga delar vrids inte på skivan.' })]
+        ], { adv: true, desc: 'Ge skivorna ett namn om du blandar skivor med samma tjocklek, t.ex. vit melamin och björkplywood.' })
     ],
     drawer: [
-        group('Skåpsöppning', [[n('w', 'Innerbredd', { min: 50, hint: 'Mellan skåpsidorna' }), n('h', 'Lådans höjd', { min: 30 }), n('d', 'Innerdjup', { min: 100, hint: 'Fram till bakstycket' })]],
-            { desc: 'Mät öppningen i skåpet där lådan ska sitta. Appen räknar ut lådans mått utifrån skenorna.' }),
-        group('Tjocklekar', [[n('sideT', 'Lådsidor', { min: 3, step: 0.5 }), n('botT', 'Lådbotten', { min: 2, step: 0.5 }), n('groove', 'Spårdjup', { min: 0, step: 0.5, hint: 'Spåret för bottnen' })]],
-            { desc: 'Bottnen sitter i ett spår som fräses i lådans sidor, fram- och bakstycke.' }),
-        group('Lådskenor', [
-            [sel('slideId', 'Typ av skenor', slideOptions)],
-            [n('clearance', 'Spel per sida', { min: 0, step: 0.1, show: p => p.slideId === 'custom', hint: 'Mellan skåpsida och lådsida' })],
+        group('Öppningen i skåpet', [[n('w', 'Bredd', { min: 50 }), n('h', 'Lådans höjd', { min: 30 }), n('d', 'Djup', { min: 100 })],
+            [sel('slideId', 'Lådskenor', slideOptions)],
+            [n('clearance', 'Spel per sida', { min: 0, step: 0.1, show: p => p.slideId === 'custom' })]],
+            { desc: 'Mät mellan skåpsidorna och fram till bakstycket.' }),
+        group('Tjocklekar och skenor', [
+            [n('sideT', 'Lådsidor', { min: 3, step: 0.5 }), n('botT', 'Lådbotten', { min: 2, step: 0.5 }), n('groove', 'Spårdjup', { min: 0, step: 0.5 })],
             [html(slideNote, { cls: 'text-[12px] muted leading-relaxed' })]
-        ]),
+        ], { adv: true, info: 'Bottnen sitter i ett spår i lådans sidor, fram- och bakstycke.' }),
         group('Skivtyp och ådring', [
             [txt('sideName', 'Lådsidor'), txt('botName', 'Lådbotten')],
-            [chk('grain', 'Ådringen ska gå längs delarnas längd', { hint: 'Synliga delar vrids inte på skivan. Dolda delar som lådbottnar och bakstycken vrids ändå.' })]
-        ], { collapsible: true, desc: 'Ge skivorna ett namn om du använder olika sorters skivor med samma tjocklek, t.ex. "Vit melamin" och "Björkplywood". Då hamnar de på olika skivor i skärschemat.' })
+            [chk('grain', 'Ådringen ska gå längs delarnas längd', { hint: 'Synliga delar vrids inte på skivan.' })]
+        ], { adv: true, desc: 'Ge skivorna ett namn om du blandar skivor med samma tjocklek, t.ex. vit melamin och björkplywood.' })
     ],
     shaker: [
-        group('Dörrmått', [[n('w', 'Bredd', { min: 100 }), n('h', 'Höjd', { min: 100 })]], { desc: 'Dörrens färdiga mått.' }),
-        group('Profil', [
+        group('Dörr', [
+            [n('w', 'Bredd', { min: 100 }), n('h', 'Höjd', { min: 100 })],
             [sel('profile', 'Ramprofil', profileOptions), sel('panelStyle', 'Fyllningstyp', panelOptions)],
-            [html(profilePreview)]
-        ], { desc: 'Hur ramens innerkant och fyllningen ser ut, och vilka fräsar som behövs.' }),
+            [html(() => '<button type="button" class="text-[12px] hover:underline" style="color: var(--accent)" data-open-profiles>Se alla profiler och vilka fräsar de kräver →</button>')],
+            [chk('hinges', 'Räkna gångjärn och borrning')]
+        ], { desc: 'Dörrens färdiga mått.' }),
         group('Ram och fyllning', [
-            [n('frame', 'Rambredd', { min: 20, hint: 'Ramens synliga bredd' }), n('tenon', 'Tappdjup', { min: 0, hint: 'Enligt din fräsats' })],
-            [n('frameT', 'Ramtjocklek', { min: 5, step: 0.5 }), n('panelT', 'Fyllning', { min: 2, step: 0.5, hint: 'Fyllningens tjocklek' })],
-            [sel('frameStock', 'Ramdelarna sågas ur', STOCK_OPTIONS, { hint: 'Virke optimeras på längden' })]
-        ], { desc: 'Ramen består av två stående delar (stiles) och två liggande (rails). Tappdjupet är hur långt de liggande delarna går in i de stående.' }),
-        group('Gångjärn', [[chk('hinges', 'Räkna gångjärn och borrschema')]]),
+            [n('frame', 'Rambredd', { min: 20 }), n('tenon', 'Tappdjup', { min: 0, hint: 'Enligt fräsatsen' })],
+            [n('frameT', 'Ramtjocklek', { min: 5, step: 0.5 }), n('panelT', 'Fyllning', { min: 2, step: 0.5 })],
+            [sel('frameStock', 'Ramdelarna sågas ur', STOCK_OPTIONS)],
+            [html(profilePreview)]
+        ], { adv: true, info: 'Ramen består av två stående delar (stiles) och två liggande (rails). Tappdjupet är hur långt de liggande delarna går in i de stående.' }),
         group('Skivtyp och ådring', [
             [txt('frameName', 'Ram'), txt('panelName', 'Fyllning')],
-            [chk('grain', 'Ådringen ska gå längs delarnas längd', { hint: 'Synliga delar vrids inte på skivan. Dolda delar som lådbottnar och bakstycken vrids ändå.' })]
-        ], { collapsible: true, desc: 'Ge skivorna ett namn om du använder olika sorters skivor med samma tjocklek, t.ex. "Vit melamin" och "Björkplywood". Då hamnar de på olika skivor i skärschemat.' })
+            [chk('grain', 'Ådringen ska gå längs delarnas längd', { hint: 'Synliga delar vrids inte på skivan.' })]
+        ], { adv: true, desc: 'Ge skivorna ett namn om du blandar skivor med samma tjocklek, t.ex. vit melamin och björkplywood.' })
     ],
     list: [
-        group('Delar', [[listField()]], { desc: 'Skriv in delarna du vill såga, eller klistra in en lista från Excel. Längden är måttet som ska gå längs ådringen.' })
+        group('Delar', [[listField()]], { desc: 'Skriv in delarna eller klistra in en lista från Excel. Längden går längs ådringen.' })
     ]
 };
 
@@ -194,52 +196,86 @@ function renderField(f, item) {
     return { field: f, wrap, input: wrap.querySelector('input,select') };
 }
 
+let advOpen = false;    // "Fler inställningar" hålls öppet mellan objekt under sessionen
+
+// Standardvärden att jämföra med: för skåp gäller skåptypens förinställda mått
+function defaultsFor(item) {
+    const d = { ...DEFAULT_PARAMS[item.type] };
+    if (item.type === 'cabinet') Object.assign(d, CABINET_KINDS[item.params.kind]?.preset || {});
+    return d;
+}
+
+function renderGroup(g, item, container) {
+    const fs = document.createElement('fieldset');
+    fs.className = 'space-y-3';
+    const info = g.info ? `<details class="info-more"><summary>Mer info</summary><p>${esc(g.info)}</p></details>` : '';
+    fs.innerHTML = `<legend class="group-title mb-1">${esc(g.title)}</legend>${g.desc ? `<p class="text-[12px] muted leading-relaxed">${esc(g.desc)}</p>` : ''}${info}`;
+    const rowEls = [];
+    for (const row of g.rows) {
+        const r = document.createElement('div');
+        r.className = `grid gap-3 ${row.length === 3 ? 'grid-cols-3' : row.length === 2 ? 'grid-cols-2' : 'grid-cols-1'}`;
+        row.forEach(f => { const fe = renderField(f, item); r.appendChild(fe.wrap); fieldEls.push(fe); });
+        fs.appendChild(r);
+        const entry = { field: { show: p => row.some(f => !f.show || f.show(p)) }, wrap: r, row };
+        fieldEls.push(entry);
+        rowEls.push(entry);
+    }
+    fieldEls.push({ field: { show: p => (!g.show || g.show(p)) && rowEls.some(e => e.field.show(p)) }, wrap: fs });
+    container.appendChild(fs);
+}
+
 function renderForm() {
     const item = activeItem();
     const form = $('itemForm');
     form.innerHTML = '';
     fieldEls = [];
     updateMatNames();
-    for (const g of SCHEMA[item.type]) {
-        let fs;
-        if (g.collapsible) {
-            // Frivilliga inställningar: hopfällda tills man behöver dem
-            const used = g.rows.flat().some(f => f.kind === 'text' ? normName(item.params[f.key]) : f.kind === 'check' && item.params[f.key]);
-            fs = document.createElement('details');
-            fs.className = 'space-y-3 group-details';
-            fs.open = used;
-            fs.innerHTML = `<summary class="group-title cursor-pointer select-none">${esc(g.title)} <span class="faint font-normal text-[12px]">valfritt</span></summary>${g.desc ? `<p class="text-[12px] muted leading-relaxed">${esc(g.desc)}</p>` : ''}`;
-        } else {
-            fs = document.createElement('fieldset');
-            fs.className = 'space-y-3';
-            fs.innerHTML = `<legend class="group-title mb-1">${esc(g.title)}</legend>${g.desc ? `<p class="text-[12px] muted leading-relaxed">${esc(g.desc)}</p>` : '<div></div>'}`;
-        }
-        const rowEls = [];
-        for (const row of g.rows) {
-            const r = document.createElement('div');
-            r.className = `grid gap-3 ${row.length === 3 ? 'grid-cols-3' : row.length === 2 ? 'grid-cols-2' : 'grid-cols-1'}`;
-            row.forEach(f => { const fe = renderField(f, item); r.appendChild(fe.wrap); fieldEls.push(fe); });
-            fs.appendChild(r);
-            const entry = { field: { show: p => row.some(f => !f.show || f.show(p)) }, wrap: r };
-            fieldEls.push(entry);
-            rowEls.push(entry);
-        }
-        fieldEls.push({ field: { show: p => (!g.show || g.show(p)) && rowEls.some(e => e.field.show(p)) }, wrap: fs });
-        form.appendChild(fs);
+    const groups = SCHEMA[item.type];
+    groups.filter(g => !g.adv).forEach(g => renderGroup(g, item, form));
+    const adv = groups.filter(g => g.adv);
+    if (adv.length) {
+        const det = document.createElement('details');
+        det.className = 'adv-settings';
+        det.open = advOpen;
+        det.innerHTML = '<summary><span class="font-medium">Fler inställningar</span><span id="advSummary" class="block text-[12px] faint font-normal mt-0.5"></span></summary>';
+        const inner = document.createElement('div');
+        inner.className = 'space-y-5 pt-4';
+        det.appendChild(inner);
+        adv.forEach(g => renderGroup(g, item, inner));
+        det.addEventListener('toggle', () => { advOpen = det.open; });
+        form.appendChild(det);
     }
     updateVisibility();
 }
 
+// Vad som finns under "Fler inställningar", och hur många värden som ändrats från standard
+function updateAdvSummary() {
+    const el = $('advSummary');
+    if (!el) return;
+    const item = activeItem(), p = item.params, def = defaultsFor(item);
+    const adv = SCHEMA[item.type].filter(g => g.adv && (!g.show || g.show(p)));
+    const changed = adv.flatMap(g => g.rows.flat())
+        .filter(f => f.key && ['num', 'select', 'check', 'text'].includes(f.kind) && (!f.show || f.show(p)))
+        .filter(f => f.kind === 'text' ? normName(p[f.key]) !== '' : String(p[f.key]) !== String(def[f.key])).length;
+    el.textContent = `${adv.map(g => g.title).join(', ')}${changed ? ` · ${changed} ändrade från standard` : ' · standardvärden'}`;
+}
+
 function updateVisibility() {
     const p = activeItem().params;
-    for (const { field, wrap } of fieldEls) {
+    for (const { field, wrap, row } of fieldEls) {
         wrap.hidden = !!field.show && !field.show(p);
+        // Dolda fält ska inte ta plats: raden får lika många kolumner som synliga fält
+        if (row && row.length > 1) {
+            const cols = Math.max(1, row.filter(f => !f.show || f.show(p)).length);
+            wrap.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
+        }
         if (field.kind === 'note') wrap.textContent = field.text(p);
         if (field.kind === 'html' && !wrap.hidden) {
             const out = field.render(p);
             if (wrap.dataset.html !== out) { wrap.innerHTML = out; wrap.dataset.html = out; }
         }
     }
+    updateAdvSummary();
 }
 
 function readField({ field, input }) {
@@ -328,9 +364,35 @@ function selectItem(id) {
     recompute();
 }
 
-function addItem(type) {
-    const count = state.project.items.filter(i => i.type === type).length + 1;
-    const item = makeItem(type, `${ITEM_TYPES[type].label} ${count}`, type === 'cabinet' ? CABINET_KINDS.base.preset : undefined);
+// Valen i "Lägg till". Varje val är en objekttyp med färdiga standardvärden.
+const ADD_OPTIONS = [
+    { id: 'base', type: 'cabinet', title: 'Bänkskåp', text: 'Köksskåp på golvet, med lådor eller dörrar.', params: { kind: 'base', ...CABINET_KINDS.base.preset } },
+    { id: 'wall', type: 'cabinet', title: 'Väggskåp', text: 'Hänger på väggen, med dörrar och hyllor.', params: { kind: 'wall', ...CABINET_KINDS.wall.preset } },
+    { id: 'tall', type: 'cabinet', title: 'Högskåp', text: 'Från golv till tak, t.ex. städ- eller skafferiskåp.', params: { kind: 'tall', ...CABINET_KINDS.tall.preset } },
+    { id: 'wardrobe', type: 'cabinet', title: 'Garderob', text: 'Högskåp med garderobsstång och hatthylla.', params: { kind: 'tall', ...CABINET_KINDS.tall.preset, shelves: 1, rail: true } },
+    { id: 'shelf', type: 'cabinet', title: 'Bokhylla', text: 'Öppen hylla utan fronter.', params: { kind: 'tall', w: 800, h: 1800, d: 300, shelves: 4, plinthH: 0, fronts: 'none' } },
+    { id: 'drawer', type: 'drawer', title: 'Lådor till skåp', text: 'Lådor till ett skåp du redan har.' },
+    { id: 'shaker', type: 'shaker', title: 'Shaker-dörr', text: 'Ram och fyllning, med profil och fräsar.' },
+    { id: 'list', type: 'list', title: 'Fria delar', text: 'Skriv in egna mått, t.ex. till ett bord.' },
+    { id: 'paste', title: 'Klistra in från Excel', text: 'En färdig kaplista från Excel eller Numbers.' }
+];
+function renderAddCards() {
+    const html = ADD_OPTIONS.map(o => `<button type="button" class="add-card" data-add-option="${o.id}">
+        <i style="background:${TYPE_COLOR[o.type] || 'var(--faint)'}"></i><b>${esc(o.title)}</b><span>${esc(o.text)}</span></button>`).join('');
+    document.querySelectorAll('[data-add-cards]').forEach(el => { el.innerHTML = html; });
+}
+document.addEventListener('click', e => {
+    const id = e.target.closest('[data-add-option]')?.dataset.addOption;
+    if (!id) return;
+    if (!$('modalAdd').hidden) closeModal('modalAdd');
+    const o = ADD_OPTIONS.find(x => x.id === id);
+    if (o.id === 'paste') openPaste(); else addItem(o.type, o.title, o.params);
+});
+
+function addItem(type, title = ITEM_TYPES[type].label, params) {
+    const base = title.replace(/ till skåp$/, '');
+    const count = state.project.items.filter(i => i.name.startsWith(base)).length + 1;
+    const item = makeItem(type, `${base} ${count}`, params);
     state.project.items.push(item);
     selectItem(item.id);
     $('itemName').focus();
@@ -421,6 +483,13 @@ function renderResults(col, opt) {
     $('statUtil').textContent = [opt.sheets ? `${Math.round(opt.utilization * 100)} % av ytan används` : '',
         opt.boards ? `+ ${opt.boards} ${opt.boards === 1 ? 'bräda' : 'brädor'} virke (${fmt(opt.boardMeters)} m)` : ''].filter(Boolean).join(' · ');
     $('statCost').textContent = fmtKr(opt.totalCost);
+    $('navCost').textContent = opt.totalCost ? fmtKr(opt.totalCost) : '';
+    $('quickSum').innerHTML = col.rows.length ? [
+        `<b class="num">${opt.sheets}</b> ${opt.sheets === 1 ? 'skiva' : 'skivor'}`,
+        opt.boards ? `<b class="num">${opt.boards}</b> ${opt.boards === 1 ? 'bräda' : 'brädor'}` : '',
+        col.edgeMeters > 0 ? `<b class="num">${fmt(Math.ceil(col.edgeMeters * 1.1 * 10) / 10)} m</b> kantlist` : '',
+        `<b class="num">${fmtKr(opt.totalCost)}</b>`
+    ].filter(Boolean).join('<span class="faint"> · </span>') : 'Inga delar ännu';
 
     const warnings = [...col.warnings];
     opt.materials.forEach(r => {
@@ -491,7 +560,6 @@ function renderResults(col, opt) {
     });
     opt.linear.forEach(r => resOpt.appendChild(boardSection(r)));
     if (!opt.materials.length && !opt.linear.length) resOpt.innerHTML = '<p class="muted">Inget att optimera.</p>';
-    $('exportRow').hidden = !opt.materials.length;
     $('offcutCount').textContent = state.offcuts.length ? `${state.offcuts.length} bitar i lager${opt.offcutsUsed.length ? `, varav ${opt.offcutsUsed.length} används här` : ''}` : '';
     const saveBtn = $('btnSaveOffcuts');
     saveBtn.hidden = !opt.newOffcuts.length && !opt.offcutsUsed.length;
@@ -730,7 +798,7 @@ $('btnOrderPrint').addEventListener('click', async () => {
 });
 
 function setTab(tab) {
-    if (!['list', 'sheets', 'hardware', 'drill', 'quote'].includes(tab)) tab = 'list';
+    if (!['list', 'sheets', 'hardware', 'drill', 'quote'].includes(tab) || (tab === 'quote' && !state.settings.showQuote)) tab = 'list';
     state.tab = tab;
     store.set(KEYS.tab, tab);
     document.querySelectorAll('[data-tab]').forEach(t => { const on = t.dataset.tab === tab; t.classList.toggle('is-on', on); t.setAttribute('aria-selected', on); });
@@ -884,7 +952,29 @@ function loadProjectData(data) {
 // ---------------------------------------------------------------------------
 // Dialoger
 // ---------------------------------------------------------------------------
-const MODALS = ['modalSettings', 'modalOffcuts', 'modalNew', 'modalProfiles', 'modalPaste', 'modalShare', 'modalShared', 'modalOrder'];
+const MODALS = ['modalSettings', 'modalOffcuts', 'modalNew', 'modalProfiles', 'modalPaste', 'modalShare', 'modalShared', 'modalOrder', 'modalAdd'];
+
+// Menyer (Projekt, Exportera): stängs vid val och vid klick utanför
+document.addEventListener('click', e => {
+    document.querySelectorAll('details.menu[open]').forEach(m => {
+        if (!m.contains(e.target) || e.target.closest('.menu-item')) m.open = false;
+    });
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') document.querySelectorAll('details.menu[open]').forEach(m => { m.open = false; }); });
+
+// 3D-vyn är hopfälld på mobilen tills man vill se den
+$('btn3d').addEventListener('click', () => {
+    const v = $('viewer3D');
+    const show = v.classList.toggle('is-collapsed') === false;
+    $('btn3d').textContent = show ? 'Dölj 3D' : 'Visa 3D';
+    $('btn3d').setAttribute('aria-expanded', show);
+    if (show) { viewer.resize?.(); viewer.frameKey = ''; recompute(); }
+});
+
+function updateQuoteTab() {
+    $('tabQuote').hidden = !state.settings.showQuote;
+    if (!state.settings.showQuote && state.tab === 'quote') setTab('list');
+}
 let lastFocus = null;
 function openModal(id) { lastFocus = document.activeElement; $(id).hidden = false; $(id).querySelector('input,select,button')?.focus(); }
 function closeModal(id) { $(id).hidden = true; lastFocus?.focus?.(); }
@@ -899,6 +989,7 @@ function fillSettings() {
     $('setShop').innerHTML = Object.entries(SHOPS).map(([k, s]) => `<option value="${k}"${k === state.settings.shop ? ' selected' : ''}>${esc(s.name)}</option>`).join('');
     $('setShopTemplate').value = state.settings.shopTemplate;
     $('setCompany').value = state.settings.company;
+    $('setShowQuote').checked = state.settings.showQuote;
     $('setCutName').value = state.settings.cutServiceName;
     $('setCutEmail').value = state.settings.cutServiceEmail;
     $('setShopTemplateWrap').hidden = state.settings.shop !== 'custom';
@@ -908,11 +999,12 @@ $('btnSettings').addEventListener('click', () => { fillSettings(); openModal('mo
 $('btnCloseSettings').addEventListener('click', () => closeModal('modalSettings'));
 $('btnSaveSettings').addEventListener('click', () => {
     const next = { ...state.settings, grainLock: $('setGrainLock').checked, shop: $('setShop').value, shopTemplate: $('setShopTemplate').value.trim(),
-                   company: $('setCompany').value, cutServiceName: $('setCutName').value, cutServiceEmail: $('setCutEmail').value };
+                   showQuote: $('setShowQuote').checked, company: $('setCompany').value, cutServiceName: $('setCutName').value, cutServiceEmail: $('setCutEmail').value };
     if (next.cutServiceEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(next.cutServiceEmail.trim())) { toast('Kapservicens e-post ser inte ut som en e-postadress.', true); return; }
     for (const [id, k] of Object.entries(SETTING_FIELDS)) next[k] = $(id).value === '' ? DEFAULT_SETTINGS[k] : $(id).value;
     if (next.shop === 'custom' && !/^https:\/\/.+\{q\}/.test(next.shopTemplate)) { toast('Länkmallen måste börja med https:// och innehålla {q}.', true); return; }
     state.settings = sanitizeSettings(next);
+    updateQuoteTab();
     closeModal('modalSettings');
     recompute();
     toast('Inställningar sparade');
@@ -1065,7 +1157,6 @@ $('csvUpload').addEventListener('change', e => {
     reader.onerror = () => { toast('Filen kunde inte läsas.', true); $('csvUpload').value = ''; };
     reader.readAsText(file);
 });
-$('btnPasteList').addEventListener('click', () => openPaste());
 
 // Verkstadsläge
 function startWorkshop(matIndex = 0, binIndex = 0) {
@@ -1114,7 +1205,8 @@ $('itemList').addEventListener('click', e => {
     const id = e.target.closest('[data-item]')?.dataset.item;
     if (id) selectItem(id);
 });
-document.querySelectorAll('[data-add]').forEach(b => b.addEventListener('click', () => addItem(b.dataset.add)));
+$('btnAdd').addEventListener('click', () => openModal('modalAdd'));
+$('btnAddClose').addEventListener('click', () => closeModal('modalAdd'));
 
 $('btnDuplicate').addEventListener('click', () => {
     const src = activeItem();
@@ -1243,6 +1335,8 @@ function init() {
         recompute();
     });
     initWorkshop();
+    renderAddCards();
+    updateQuoteTab();
     setTab(store.get(KEYS.tab) || 'list');
     selectItem(state.activeId);
     fillQuoteForm();

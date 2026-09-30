@@ -5,11 +5,12 @@ Allt körs i webbläsaren och fungerar offline när sidan har laddats en gång.
 
 ## Funktioner
 
-- **Egen kaplista** – skriv in fria delar med antal, mått, tjocklek, skivtyp, kantlist per kant och ådring per del, eller klistra in rader direkt från Excel, Numbers eller en CSV-fil.
+- **Enkelt att börja** – "Lägg till" visar färdiga val (bänkskåp, väggskåp, högskåp, garderob, bokhylla, lådor, shaker-dörr, fria delar). Formulären visar bara det viktigaste; resten finns under "Fler inställningar", som visar hur många värden som ändrats från standard. Offerten visas när man valt "Jag tar betalt för jobbet" i Inställningar.
+- **Fria delar** – skriv in fria delar med antal, mått, tjocklek, skivtyp, kantlist per kant och ådring per del, eller klistra in rader direkt från Excel, Numbers eller en CSV-fil.
 - **Verkstadsläge** – sågordning med ett snitt i taget, stora siffror och markering av snittet på skivan. Var man är sparas, så man kan fortsätta senare.
-- **Virke på längden** – shaker-ramar och rader i egen kaplista kan sågas ur brädor. Brädorna optimeras på längden med sågspalt och kapning i ändarna, med egen längd och meterpris per dimension.
+- **Virke på längden** – shaker-ramar och fria delar kan sågas ur brädor. Brädorna optimeras på längden med sågspalt och kapning i ändarna, med egen längd och meterpris per dimension.
 - **Skåptyper** – bänk-, vägg- och högskåp med standardmått, sockel, mellanväggar och garderobsstång. "Hela projektet" i 3D-vyn visar alla skåp tillsammans som en vägg.
-- **Hyllhål och spår** – hyllhålsrader enligt 32-mm-systemet och bakstycke i spår, med mått i Borrschemat och på utskriften.
+- **Hyllhål och spår** – hyllhålsrader enligt 32-mm-systemet och bakstycke i spår, med mått under Borrning och på utskriften.
 - **Export till DXF och SVG** – alla skärscheman i en fil i skala 1:1, för CNC och CAD.
 - **Offert** – material, kantlist och beslag med egna inköpspriser, arbetstid, påslag och moms. Offerten skrivs ut som PDF med dina företagsuppgifter och sparas med projektet.
 - **Delningslänk** – hela projektet komprimeras in i länken, så inget konto eller någon server behövs. Offerten följer bara med om man väljer det.
@@ -48,7 +49,7 @@ checkas in så att sidan kan publiceras som statiska filer utan byggsteg. CI kon
 | `src/viewer.js` | 3D-vyn (Three.js). |
 | `src/draw.js` | Ritar skärscheman på canvas. |
 | `src/print.js` | Utskriftsvy med QR-etiketter. |
-| `src/listEditor.js` | Redigeraren för egen kaplista. |
+| `src/listEditor.js` | Redigeraren för fria delar. |
 | `src/workshop.js` | Verkstadsläget. |
 | `src/export.js` | Export av skärscheman till DXF och SVG. |
 | `src/share.js` | Delningslänk: projektet komprimerat i adressens #-del. |

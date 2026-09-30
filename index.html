@@ -30,10 +30,15 @@
             <span id="offlineBadge" class="text-[11px] font-medium rounded-full px-2 py-0.5" style="color: var(--warn); background: rgba(240,180,76,0.1);" hidden>Offline</span>
             <nav class="ml-auto flex items-center gap-0.5" aria-label="Projekt">
                 <input type="file" id="fileUpload" accept=".cutyard,.json,application/json" class="hidden">
-                <button id="btnNew" type="button" class="btn-quiet" title="Nytt projekt"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/></svg><span class="hidden md:inline">Nytt</span></button>
-                <button id="btnLoadProject" type="button" class="btn-quiet" title="Öppna projektfil"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/></svg><span class="hidden md:inline">Öppna</span></button>
-                <button id="btnSaveProject" type="button" class="btn-quiet" title="Spara projektfil"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v11m0 0l-4-4m4 4l4-4M5 19h14"/></svg><span class="hidden md:inline">Spara</span></button>
-                <button id="btnShare" type="button" class="btn-quiet" title="Skapa en länk till projektet som du kan skicka till en kund eller kollega"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M10 14a4 4 0 005.66 0l3-3a4 4 0 00-5.66-5.66l-1 1M14 10a4 4 0 00-5.66 0l-3 3a4 4 0 005.66 5.66l1-1"/></svg><span class="hidden md:inline">Dela</span></button>
+                <details class="menu" id="projectMenu">
+                    <summary class="btn-quiet" aria-haspopup="menu"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/></svg><span class="hidden sm:inline">Projekt</span><svg class="w-3 h-3 faint" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary>
+                    <div class="menu-list" role="menu">
+                        <button id="btnNew" type="button" class="menu-item" role="menuitem"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/></svg><span>Nytt projekt</span></button>
+                        <button id="btnLoadProject" type="button" class="menu-item" role="menuitem"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/></svg><span>Öppna projektfil</span></button>
+                        <button id="btnSaveProject" type="button" class="menu-item" role="menuitem"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v11m0 0l-4-4m4 4l4-4M5 19h14"/></svg><span>Spara projektfil</span></button>
+                        <button id="btnShare" type="button" class="menu-item" role="menuitem"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M10 14a4 4 0 005.66 0l3-3a4 4 0 00-5.66-5.66l-1 1M14 10a4 4 0 00-5.66 0l-3 3a4 4 0 005.66 5.66l1-1"/></svg><span>Dela med länk</span></button>
+                    </div>
+                </details>
                 <button id="btnSettings" type="button" class="btn-quiet" title="Inställningar" aria-label="Inställningar"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg><span class="hidden md:inline">Inställningar</span></button>
             </nav>
         </div>
@@ -51,21 +56,14 @@
                     <span id="itemCount" class="text-[12px] faint num"></span>
                 </div>
                 <ul id="itemList" class="flex lg:flex-col gap-1 overflow-x-auto no-scrollbar lg:overflow-visible" role="tablist" aria-label="Objekt i projektet"></ul>
-                <div class="mt-3 pt-3 border-t flex flex-wrap lg:flex-col gap-0.5" style="border-color: var(--line);">
-                    <span class="px-1 pb-1 text-[12px] faint hidden lg:block">Lägg till</span>
-                    <button type="button" class="btn-quiet justify-start" data-add="cabinet">+ Skåp</button>
-                    <button type="button" class="btn-quiet justify-start" data-add="drawer">+ Lådor</button>
-                    <button type="button" class="btn-quiet justify-start" data-add="shaker">+ Shaker-dörr</button>
-                    <button type="button" class="btn-quiet justify-start" data-add="list" title="Skriv in egna delar, t.ex. till en bokhylla eller ett bord">+ Egen kaplista</button>
-                    <button type="button" id="btnPasteList" class="btn-quiet justify-start" title="Klistra in rader från Excel, Numbers eller Google Kalkylark">Klistra in från Excel</button>
-                </div>
+                <button type="button" id="btnAdd" class="btn-line w-full mt-3">+ Lägg till</button>
             </aside>
 
             <!-- Tomt projekt -->
-            <section id="emptyState" class="card p-10 text-center lg:col-span-2" hidden>
-                <h2 class="text-lg font-semibold">Projektet är tomt</h2>
-                <p class="muted mt-1">Ett projekt kan innehålla flera skåp, lådor och dörrar. Alla delar optimeras tillsammans på samma skivor.</p>
-                <p class="muted mt-1">Börja med "+ Skåp", "+ Lådor" eller "+ Shaker-dörr" i listan till vänster.</p>
+            <section id="emptyState" class="card p-6 sm:p-10 text-center lg:col-span-2" hidden>
+                <h2 class="text-lg font-semibold">Vad vill du bygga?</h2>
+                <p class="muted mt-1">Allt du lägger till optimeras tillsammans på samma skivor.</p>
+                <div class="add-cards mt-6 text-left" data-add-cards></div>
             </section>
 
             <!-- Formulär -->
@@ -98,7 +96,7 @@
             <!-- 3D -->
             <section id="viewerPanel" class="card overflow-hidden min-w-0 lg:sticky lg:top-20" aria-label="3D-vy">
                 <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-4 py-2.5 border-b" style="border-color: var(--line);">
-                    <span class="text-[12px] muted min-w-0">Dra för att vrida, scrolla för att zooma. Klicka på en del för att ta bort den ur kaplistan.</span>
+                    <span class="text-[12px] muted min-w-0 flex items-center gap-2"><button id="btn3d" type="button" class="btn-line !py-1 lg:hidden" aria-controls="viewer3D" aria-expanded="false">Visa 3D</button><span class="hidden lg:inline">Dra för att vrida. Klicka på en del för att ta bort den ur listan.</span></span>
                     <div class="flex items-center gap-4 shrink-0">
                         <label class="flex items-center gap-2 text-[12px] muted cursor-pointer" title="Visa alla objekt tillsammans: bänk- och högskåp i en rad, väggskåp ovanför">
                             <span class="check-wrap"><input id="wallView" type="checkbox" class="check"><svg class="check-mark" fill="none" stroke="currentColor" stroke-width="3.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></span>
@@ -110,7 +108,11 @@
                         </label>
                     </div>
                 </div>
-                <div id="viewer3D" class="viewer h-[320px] sm:h-[440px] lg:h-[520px] cursor-grab active:cursor-grabbing"></div>
+                <div id="viewer3D" class="viewer is-collapsed h-[320px] sm:h-[440px] lg:h-[520px] cursor-grab active:cursor-grabbing"></div>
+                <a href="#resultSection" class="hidden lg:flex items-center justify-between gap-3 px-4 py-3 border-t text-[13px] hover:bg-[var(--surface-2)]" style="border-color: var(--line);">
+                    <span><span class="muted">Hela projektet: </span><span id="quickSum"></span></span>
+                    <span class="shrink-0" style="color: var(--accent)">Visa resultat ↓</span>
+                </a>
             </section>
         </div>
 
@@ -122,9 +124,16 @@
                     <button type="button" class="seg is-on" data-scope="project" title="Alla objekt i listan till vänster">Hela projektet</button>
                     <button type="button" class="seg" data-scope="item">Bara <span id="scopeItemName">objektet</span></button>
                 </div>
-                <div class="ml-auto flex flex-wrap gap-1">
-                    <button id="btnCopyCsv" type="button" class="btn-quiet" title="Kopiera kaplistan och klistra in den i Excel eller Numbers">Kopiera</button>
-                    <button id="btnExportCsv" type="button" class="btn-quiet" title="Ladda ner kaplistan som CSV-fil">Ladda ner CSV</button>
+                <div class="ml-auto flex flex-wrap items-center gap-1">
+                    <details class="menu" id="exportMenu">
+                        <summary class="btn-quiet" aria-haspopup="menu">Exportera<svg class="w-3 h-3 faint" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary>
+                        <div class="menu-list menu-right" role="menu">
+                            <button id="btnCopyCsv" type="button" class="menu-item" role="menuitem"><span>Kopiera kaplistan<small>Klistra in i Excel eller Numbers</small></span></button>
+                            <button id="btnExportCsv" type="button" class="menu-item" role="menuitem"><span>Kaplista som CSV</span></button>
+                            <button id="btnExportDxf" type="button" class="menu-item" role="menuitem"><span>Skärscheman som DXF<small>För CNC och CAD, skala 1:1</small></span></button>
+                            <button id="btnExportSvg" type="button" class="menu-item" role="menuitem"><span>Skärscheman som SVG</span></button>
+                        </div>
+                    </details>
                     <button id="btnOrder" type="button" class="btn-quiet" title="Skicka kaplistan till en bygghandel eller kapservice som sågar skivorna åt dig">Beställ kapning</button>
                     <button id="btnPrint" type="button" class="btn-line" title="Kaplista, skärscheman, beslag, borrschema och etiketter med QR-kod. Välj Spara som PDF i utskriftsdialogen för att få en PDF.">Skriv ut / PDF</button>
                 </div>
@@ -142,10 +151,10 @@
 
             <div class="px-4 sm:px-5 mt-4 border-b flex gap-5 overflow-x-auto no-scrollbar" style="border-color: var(--line);" role="tablist" aria-label="Resultat">
                 <button type="button" role="tab" class="tab is-on" data-tab="list">Kaplista</button>
-                <button type="button" role="tab" class="tab" data-tab="sheets">Skärscheman</button>
-                <button type="button" role="tab" class="tab" data-tab="hardware">Beslag</button>
-                <button type="button" role="tab" class="tab" data-tab="drill">Borrschema</button>
-                <button type="button" role="tab" class="tab" data-tab="quote">Offert</button>
+                <button type="button" role="tab" class="tab" data-tab="sheets">Skärschema</button>
+                <button type="button" role="tab" class="tab" data-tab="hardware">Inköp</button>
+                <button type="button" role="tab" class="tab" data-tab="drill">Borrning</button>
+                <button type="button" role="tab" class="tab" data-tab="quote" id="tabQuote" hidden>Offert</button>
             </div>
 
             <div class="p-4 sm:p-5">
@@ -155,7 +164,8 @@
 
                 <div data-panel="sheets" role="tabpanel" hidden>
                     <div class="flex flex-wrap items-center gap-x-4 gap-y-2 mb-4 text-[12px] muted">
-                        <span class="max-w-2xl leading-relaxed">Så här sågas skivorna. Varje snitt går rakt igenom skivan, så schemat fungerar på en vanlig skivsåg. Numren hänvisar till kaplistan och ↻ betyder att delen är vriden. Streckade ytor är spillbitar som är stora nog att spara. Ange skivans mått och pris per tjocklek om de skiljer sig från standard i Inställningar.</span>
+                        <span class="max-w-2xl leading-relaxed">Varje snitt går rakt igenom skivan.
+                            <details class="info-more inline-block align-top"><summary>Så läser du schemat</summary><p>Numren hänvisar till kaplistan och ↻ betyder att delen är vriden. Streckade ytor är spillbitar som är stora nog att spara. Skivans mått och pris kan ändras per tjocklek i fälten ovanför varje schema.</p></details></span>
                         <span class="ml-auto flex flex-wrap items-center gap-1">
                             <span id="offcutCount"></span>
                             <button id="btnOffcuts" type="button" class="btn-quiet !py-1" title="Visa och ändra sparade spillbitar">Spillager</button>
@@ -164,12 +174,6 @@
                         </span>
                     </div>
                     <div id="resOpt" class="space-y-8"></div>
-                    <div id="exportRow" class="mt-6 pt-4 border-t flex flex-wrap items-center gap-2 text-[12px] muted" style="border-color: var(--line);">
-                        <span class="mr-2">Exportera skärschemana:</span>
-                        <button id="btnExportDxf" type="button" class="btn-line !py-1" title="För CNC-maskiner och CAD-program. Ett lager per typ: SKIVA, DELAR, SPILL och TEXT.">DXF</button>
-                        <button id="btnExportSvg" type="button" class="btn-line !py-1" title="Vektorbild som kan öppnas i webbläsaren, Illustrator eller Inkscape">SVG</button>
-                        <span class="faint">Alla skivor i en fil, i skala 1:1 i millimeter.</span>
-                    </div>
                 </div>
 
                 <div data-panel="hardware" role="tabpanel" hidden>
@@ -246,6 +250,13 @@
         </section>
     </main>
 
+    <nav id="mobileNav" class="lg:hidden" aria-label="Hoppa till">
+        <a href="#itemsTitle">Objekt</a>
+        <a href="#editorPanel">Mått</a>
+        <a href="#viewerPanel">3D</a>
+        <a href="#resultSection" class="is-accent">Resultat <span id="navCost" class="num"></span></a>
+    </nav>
+
     <footer class="border-t mt-6" style="border-color: var(--line);">
         <div class="max-w-[1400px] mx-auto px-4 sm:px-6 py-5 flex flex-col sm:flex-row gap-2 justify-between text-[12px] faint">
             <p>© <span id="year"></span> CutYard PRO · Beslagsmått är riktvärden, kontrollera mot tillverkarens anvisning.</p>
@@ -296,6 +307,10 @@
                 </fieldset>
                 <fieldset class="field-group grid-cols-2">
                     <legend class="group-title mb-3">Offert och kapservice</legend>
+                    <label class="col-span-2 inline-flex items-start gap-2.5 cursor-pointer">
+                        <span class="check-wrap mt-0.5"><input id="setShowQuote" type="checkbox" class="check"><svg class="check-mark" fill="none" stroke="currentColor" stroke-width="3.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></span>
+                        <span>Jag tar betalt för jobbet<span class="block text-[12px] faint mt-0.5">Visar fliken Offert med arbetstid, påslag och moms.</span></span>
+                    </label>
                     <div class="col-span-2"><label class="lbl" for="setCompany">Dina företagsuppgifter på offerten</label>
                         <textarea id="setCompany" rows="3" maxlength="400" class="fld text-[13px]" placeholder="Företagsnamn&#10;Org.nr, adress&#10;Telefon, e-post"></textarea></div>
                     <div><label class="lbl" for="setCutName">Kapservice</label><input id="setCutName" type="text" maxlength="80" class="fld" placeholder="T.ex. bygghandeln i stan"></div>
@@ -337,6 +352,18 @@
             <div class="px-5 py-4 border-t flex justify-end" style="border-color: var(--line);">
                 <button id="btnCloseProfiles" type="button" class="btn-accent">Klar</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Lägg till -->
+    <div id="modalAdd" class="fixed inset-0 bg-black/60 flex justify-center items-center z-50 p-4" hidden>
+        <div class="card w-full max-w-2xl max-h-full overflow-y-auto shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="addTitle">
+            <div class="px-5 pt-5 flex items-start justify-between gap-4">
+                <div><h3 id="addTitle" class="text-base font-semibold">Vad vill du lägga till?</h3>
+                <p class="text-[12px] muted mt-1">Allt i projektet optimeras tillsammans på samma skivor.</p></div>
+                <button id="btnAddClose" type="button" class="btn-quiet !px-2" aria-label="Stäng">✕</button>
+            </div>
+            <div class="p-5 add-cards" data-add-cards></div>
         </div>
     </div>
 

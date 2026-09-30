@@ -31,6 +31,7 @@ export const DEFAULT_SETTINGS = {
     minOffcutW: 150,
     shop: 'prisjakt',   // butikssökning för beslag
     shopTemplate: '',   // egen URL-mall med {q}
+    showQuote: false,   // visa fliken Offert (för dig som tar betalt för jobbet)
     company: '',        // företagsuppgifter överst på offerten (fritext, flera rader)
     cutServiceName: '', // kapservice som beställningar skickas till
     cutServiceEmail: ''
