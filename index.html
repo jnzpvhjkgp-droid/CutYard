@@ -33,6 +33,7 @@
                 <button id="btnNew" type="button" class="btn-quiet" title="Nytt projekt"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/></svg><span class="hidden md:inline">Nytt</span></button>
                 <button id="btnLoadProject" type="button" class="btn-quiet" title="Öppna projektfil"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/></svg><span class="hidden md:inline">Öppna</span></button>
                 <button id="btnSaveProject" type="button" class="btn-quiet" title="Spara projektfil"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v11m0 0l-4-4m4 4l4-4M5 19h14"/></svg><span class="hidden md:inline">Spara</span></button>
+                <button id="btnShare" type="button" class="btn-quiet" title="Skapa en länk till projektet som du kan skicka till en kund eller kollega"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M10 14a4 4 0 005.66 0l3-3a4 4 0 00-5.66-5.66l-1 1M14 10a4 4 0 00-5.66 0l-3 3a4 4 0 005.66 5.66l1-1"/></svg><span class="hidden md:inline">Dela</span></button>
                 <button id="btnSettings" type="button" class="btn-quiet" title="Inställningar" aria-label="Inställningar"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg><span class="hidden md:inline">Inställningar</span></button>
             </nav>
         </div>
@@ -124,6 +125,7 @@
                 <div class="ml-auto flex flex-wrap gap-1">
                     <button id="btnCopyCsv" type="button" class="btn-quiet" title="Kopiera kaplistan och klistra in den i Excel eller Numbers">Kopiera</button>
                     <button id="btnExportCsv" type="button" class="btn-quiet" title="Ladda ner kaplistan som CSV-fil">Ladda ner CSV</button>
+                    <button id="btnOrder" type="button" class="btn-quiet" title="Skicka kaplistan till en bygghandel eller kapservice som sågar skivorna åt dig">Beställ kapning</button>
                     <button id="btnPrint" type="button" class="btn-line" title="Kaplista, skärscheman, beslag, borrschema och etiketter med QR-kod. Välj Spara som PDF i utskriftsdialogen för att få en PDF.">Skriv ut / PDF</button>
                 </div>
             </div>
@@ -143,6 +145,7 @@
                 <button type="button" role="tab" class="tab" data-tab="sheets">Skärscheman</button>
                 <button type="button" role="tab" class="tab" data-tab="hardware">Beslag</button>
                 <button type="button" role="tab" class="tab" data-tab="drill">Borrschema</button>
+                <button type="button" role="tab" class="tab" data-tab="quote">Offert</button>
             </div>
 
             <div class="p-4 sm:p-5">
@@ -212,6 +215,33 @@
                         </table></div>
                     </div>
                 </div>
+
+                <div data-panel="quote" role="tabpanel" hidden>
+                    <p class="text-[12px] muted mb-4 leading-relaxed max-w-3xl">Räkna fram ett pris till en kund. Materialet hämtas från skärschemana och kaplistan, beslagen från beslagslistan. Ange dina inköpspriser för beslagen i tabellen. Påslaget läggs på material och beslag, inte på arbetet. Offerten sparas med projektet.</p>
+                    <div id="quoteForm" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+                        <div class="col-span-2"><label class="lbl" for="qCustomer">Kund</label><input id="qCustomer" data-q="customer" type="text" maxlength="120" class="fld" placeholder="Namn, adress"></div>
+                        <div><label class="lbl" for="qReference">Offertnummer</label><input id="qReference" data-q="reference" type="text" maxlength="120" class="fld" placeholder="T.ex. 2026-014"></div>
+                        <div><label class="lbl" for="qValid">Giltig</label><div class="fld-unit"><input id="qValid" data-q="validDays" type="number" min="1" class="fld"><span class="unit">dagar</span></div></div>
+                        <div><label class="lbl" for="qHours">Arbetstid</label><div class="fld-unit"><input id="qHours" data-q="hours" type="number" min="0" step="0.5" class="fld"><span class="unit">h</span></div></div>
+                        <div><label class="lbl" for="qRate">Timpris</label><div class="fld-unit"><input id="qRate" data-q="rate" type="number" min="0" class="fld"><span class="unit">kr/h</span></div></div>
+                        <div><label class="lbl" for="qMarkup">Påslag</label><div class="fld-unit"><input id="qMarkup" data-q="markup" type="number" min="0" class="fld"><span class="unit">%</span></div></div>
+                        <div><label class="lbl" for="qEdge">Kantlist</label><div class="fld-unit"><input id="qEdge" data-q="edgePrice" type="number" min="0" step="0.5" class="fld"><span class="unit">kr/m</span></div></div>
+                        <div class="col-span-2"><label class="lbl" for="qExtraText">Övrigt</label><input id="qExtraText" data-q="extraText" type="text" maxlength="80" class="fld" placeholder="T.ex. ytbehandling eller frakt"></div>
+                        <div><label class="lbl" for="qExtra">Övrigt, belopp</label><div class="fld-unit"><input id="qExtra" data-q="extra" type="number" min="0" class="fld"><span class="unit">kr</span></div></div>
+                        <div><label class="lbl" for="qVat">Moms</label><div class="fld-unit"><input id="qVat" data-q="vat" type="number" min="0" max="100" class="fld"><span class="unit">%</span></div></div>
+                    </div>
+                    <div class="overflow-x-auto"><table class="tbl">
+                        <thead><tr><th>Beskrivning</th><th class="!text-right">Antal</th><th>Enhet</th><th class="!text-right">À-pris exkl. moms</th><th class="!text-right">Summa</th></tr></thead>
+                        <tbody id="quoteLines"></tbody>
+                    </table></div>
+                    <div id="quoteMissing" class="note-warn mt-3" hidden></div>
+                    <dl id="quoteTotals" class="mt-4 ml-auto max-w-sm grid grid-cols-[1fr_auto] gap-x-6 gap-y-1.5 text-[13px]"></dl>
+                    <div class="mt-5 flex flex-wrap gap-2 justify-end">
+                        <button id="btnCopyQuote" type="button" class="btn-quiet">Kopiera som text</button>
+                        <button id="btnPrintQuote" type="button" class="btn-accent" title="Välj Spara som PDF i utskriftsdialogen för att få en PDF att mejla">Skriv ut offert / PDF</button>
+                    </div>
+                    <p class="text-[12px] faint mt-3 text-right">Dina företagsuppgifter överst på offerten ställer du in under Inställningar.</p>
+                </div>
             </div>
         </section>
     </main>
@@ -264,6 +294,14 @@
                     <div><label class="lbl" for="setMinOffcutL">Minsta längd att spara</label><div class="fld-unit"><input type="number" id="setMinOffcutL" min="0" class="fld"><span class="unit">mm</span></div></div>
                     <div><label class="lbl" for="setMinOffcutW">Minsta bredd att spara</label><div class="fld-unit"><input type="number" id="setMinOffcutW" min="0" class="fld"><span class="unit">mm</span></div></div>
                 </fieldset>
+                <fieldset class="field-group grid-cols-2">
+                    <legend class="group-title mb-3">Offert och kapservice</legend>
+                    <div class="col-span-2"><label class="lbl" for="setCompany">Dina företagsuppgifter på offerten</label>
+                        <textarea id="setCompany" rows="3" maxlength="400" class="fld text-[13px]" placeholder="Företagsnamn&#10;Org.nr, adress&#10;Telefon, e-post"></textarea></div>
+                    <div><label class="lbl" for="setCutName">Kapservice</label><input id="setCutName" type="text" maxlength="80" class="fld" placeholder="T.ex. bygghandeln i stan"></div>
+                    <div><label class="lbl" for="setCutEmail">Kapservicens e-post</label><input id="setCutEmail" type="email" maxlength="120" class="fld" placeholder="kapning@exempel.se"></div>
+                    <p class="col-span-2 text-[12px] faint -mt-1">Många bygghandlar och skivgrossister sågar skivor efter kaplista. Fråga din butik efter e-postadressen.</p>
+                </fieldset>
                 <fieldset class="field-group">
                     <legend class="group-title mb-3">Prislänkar för beslag och fräsar</legend>
                     <p class="text-[12px] muted -mt-1">Var "Sök pris" ska söka.</p>
@@ -298,6 +336,68 @@
             </div>
             <div class="px-5 py-4 border-t flex justify-end" style="border-color: var(--line);">
                 <button id="btnCloseProfiles" type="button" class="btn-accent">Klar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dela -->
+    <div id="modalShare" class="fixed inset-0 bg-black/60 flex justify-center items-center z-50 p-4" hidden>
+        <div class="card w-full max-w-lg shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="shareTitle">
+            <div class="px-5 pt-5">
+                <h3 id="shareTitle" class="text-base font-semibold">Dela projektet</h3>
+                <p class="text-[12px] muted mt-1 leading-relaxed">Hela projektet ligger i själva länken, så den som öppnar den får en egen kopia. Inget laddas upp och ingen inloggning behövs. Ändringar du gör efteråt kommer inte med, skapa i så fall en ny länk.</p>
+            </div>
+            <div class="p-5 space-y-3">
+                <label class="inline-flex items-start gap-2.5 cursor-pointer text-[13px]">
+                    <span class="check-wrap mt-0.5"><input id="shareQuote" type="checkbox" class="check"><svg class="check-mark" fill="none" stroke="currentColor" stroke-width="3.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></span>
+                    <span>Ta med offerten<span class="block text-[11px] faint">Innehåller dina inköpspriser, ditt timpris och ditt påslag. Låt rutan vara tom om länken ska till en kund.</span></span>
+                </label>
+                <textarea id="shareUrl" rows="3" readonly class="fld num text-[12px] break-all" aria-label="Länk till projektet"></textarea>
+                <p id="shareSize" class="text-[12px] faint"></p>
+            </div>
+            <div class="px-5 py-4 border-t flex justify-end gap-2" style="border-color: var(--line);">
+                <button id="btnShareClose" type="button" class="btn-quiet">Stäng</button>
+                <button id="btnShareCopy" type="button" class="btn-accent">Kopiera länk</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Öppna delat projekt -->
+    <div id="modalShared" class="fixed inset-0 bg-black/60 flex justify-center items-center z-50 p-4" hidden>
+        <div class="card w-full max-w-md shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="sharedTitle">
+            <div class="px-5 pt-5">
+                <h3 id="sharedTitle" class="text-base font-semibold">Öppna delat projekt?</h3>
+                <p id="sharedText" class="text-[13px] muted mt-2 leading-relaxed"></p>
+            </div>
+            <div class="px-5 py-4 mt-4 border-t flex justify-end gap-2" style="border-color: var(--line);">
+                <button id="btnSharedNo" type="button" class="btn-quiet">Behåll mitt projekt</button>
+                <button id="btnSharedYes" type="button" class="btn-accent">Öppna</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Beställ kapning -->
+    <div id="modalOrder" class="fixed inset-0 bg-black/60 flex justify-center items-center z-50 p-4" hidden>
+        <div class="card w-full max-w-2xl max-h-full overflow-y-auto shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="orderTitle">
+            <div class="px-5 pt-5">
+                <h3 id="orderTitle" class="text-base font-semibold">Beställ kapning</h3>
+                <p class="text-[12px] muted mt-1 leading-relaxed">Skicka kaplistan till en bygghandel eller kapservice som sågar skivorna åt dig. Beställningen innehåller skivorna, alla delar med mått, ådring och vilka kanter som ska ha kantlist. Virke och borrning kommer inte med.</p>
+            </div>
+            <div class="p-5 grid grid-cols-2 gap-3">
+                <div><label class="lbl" for="orderName">Ditt namn</label><input id="orderName" type="text" maxlength="80" class="fld" autocomplete="name"></div>
+                <div><label class="lbl" for="orderPhone">Telefon</label><input id="orderPhone" type="tel" maxlength="40" class="fld" autocomplete="tel"></div>
+                <div><label class="lbl" for="orderDelivery">Leverans</label><select id="orderDelivery" class="fld"><option value="pickup">Hämtas i butik</option><option value="delivery">Leverans</option></select></div>
+                <div><label class="lbl" for="orderTo">Skickas till</label><input id="orderTo" type="email" maxlength="120" class="fld" placeholder="kapning@exempel.se"></div>
+                <div class="col-span-2"><label class="lbl" for="orderNote">Meddelande</label><input id="orderNote" type="text" maxlength="200" class="fld" placeholder="T.ex. önskat hämtdatum"></div>
+                <details class="col-span-2"><summary class="text-[12px] muted cursor-pointer">Förhandsgranska beställningen</summary>
+                    <pre id="orderPreview" class="mt-2 p-3 rounded-lg text-[11px] leading-relaxed whitespace-pre-wrap max-h-64 overflow-y-auto" style="background: var(--bg); border: 1px solid var(--line);"></pre></details>
+                <p id="orderNoSheets" class="col-span-2 note-warn" hidden>Det finns inga skivdelar att beställa kapning för.</p>
+            </div>
+            <div class="px-5 py-4 border-t flex flex-wrap justify-end gap-2" style="border-color: var(--line);">
+                <button id="btnOrderCancel" type="button" class="btn-quiet">Avbryt</button>
+                <button id="btnOrderCopy" type="button" class="btn-quiet">Kopiera text</button>
+                <button id="btnOrderPrint" type="button" class="btn-line">Skriv ut / PDF</button>
+                <button id="btnOrderMail" type="button" class="btn-accent">Öppna i e-post</button>
             </div>
         </div>
     </div>

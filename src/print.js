@@ -1,6 +1,6 @@
 // Bygger en utskriftsvänlig version: kaplista, beslag, skärscheman, borrschema och etiketter med QR-kod.
 import qrcode from '../vendor/qrcode.mjs';
-import { fmt, fmtKr, matLabel, boardLabel, labelText } from './core.js';
+import { fmt, fmtKr, matLabel, boardLabel, labelText, edgeText } from './core.js';
 import { sheetCanvas } from './draw.js';
 
 // Å, Ä och Ö ska kodas som UTF-8 i QR-koden
@@ -84,4 +84,45 @@ export function buildPrint(el, { projectName, scopeLabel, col, opt, withLabels }
         labels.appendChild(grid);
         el.appendChild(labels);
     }
+}
+
+// Offert till kund
+export function buildQuotePrint(el, { projectName, company, quote: q, result: r }) {
+    const date = new Date();
+    const valid = new Date(date.getTime() + q.validDays * 864e5);
+    const d = x => x.toLocaleDateString('sv-SE');
+    const h = [];
+    h.push(`<div style="display:flex;justify-content:space-between;gap:10mm;align-items:flex-start">
+        <div style="white-space:pre-line;font-size:9pt">${esc(company || '')}</div>
+        <div style="text-align:right"><h1 style="margin:0">Offert</h1><div style="font-size:9pt">${q.reference ? `Nr ${esc(q.reference)}<br>` : ''}Datum ${d(date)}<br>Giltig t.o.m. ${d(valid)}</div></div>
+    </div>`);
+    h.push(`<div style="margin:8mm 0 4mm">${q.customer ? `<div style="font-size:9pt;color:#555">Till</div><div style="white-space:pre-line">${esc(q.customer)}</div>` : ''}
+        <div style="margin-top:4mm"><b>Avser:</b> ${esc(projectName)}</div></div>`);
+    const title = { material: 'Material', hardware: 'Beslag', labor: 'Arbete', extra: 'Övrigt' };
+    h.push('<table><thead><tr><th>Beskrivning</th><th style="text-align:right">Antal</th><th>Enhet</th><th style="text-align:right">À-pris</th><th style="text-align:right">Summa</th></tr></thead><tbody>');
+    let cur = '';
+    // Kunden ser priser inklusive påslag, fördelat på material- och beslagsraderna
+    const factor = r.goods ? (r.goods + r.markup) / r.goods : 1;
+    r.lines.forEach(l => {
+        if (l.group !== cur) { cur = l.group; h.push(`<tr><td colspan="5" style="background:#f4f4f4;font-weight:600">${title[l.group]}</td></tr>`); }
+        const f = l.group === 'material' || l.group === 'hardware' ? factor : 1;
+        h.push(`<tr><td>${esc(l.text)}</td><td class="p-num" style="text-align:right">${fmt(l.qty)}</td><td>${esc(l.unit)}</td><td class="p-num" style="text-align:right">${fmt(l.price * f)}</td><td class="p-num" style="text-align:right">${fmtKr(l.sum * f)}</td></tr>`);
+    });
+    h.push('</tbody></table>');
+    const row = (a, b, strong) => `<tr><td style="border:0;text-align:right;${strong ? 'font-weight:700;font-size:11pt' : ''}">${a}</td><td class="p-num" style="border:0;text-align:right;width:35mm;${strong ? 'font-weight:700;font-size:11pt' : ''}">${b}</td></tr>`;
+    h.push(`<table style="margin-top:3mm;width:auto;margin-left:auto">${row('Summa exkl. moms', fmtKr(r.net))}${row(`Moms ${fmt(q.vat)} %`, fmtKr(r.vat))}${row('Att betala', fmtKr(r.total), true)}</table>`);
+    h.push(`<p style="font-size:8.5pt;margin-top:8mm;color:#444">Offerten gäller till och med ${d(valid)}. Priserna gäller för de mått och antal som anges ovan. Ändringar kan påverka priset.</p>`);
+    el.innerHTML = h.join('');
+}
+
+// Beställning till kapservice
+export function buildOrderPrint(el, { text, col, info, serviceName }) {
+    const h = [];
+    h.push(`<h1>Beställning av kapning</h1><div>${serviceName ? `Till: ${esc(serviceName)} · ` : ''}${new Date().toLocaleDateString('sv-SE')}</div>`);
+    h.push(`<div style="margin:3mm 0">${[info.name && `Beställare: ${esc(info.name)}`, info.phone && `Telefon: ${esc(info.phone)}`, info.delivery === 'delivery' ? 'Leverans' : 'Hämtas i butik', info.note && esc(info.note)].filter(Boolean).join(' · ')}</div>`);
+    h.push('<h2>Delar</h2><table><thead><tr><th>Nr</th><th>Antal</th><th>Längd</th><th>Bredd</th><th>Skiva</th><th>Kantlist</th><th>Ådring</th><th>Del</th></tr></thead><tbody>');
+    col.rows.filter(r => !r.board).forEach(r => h.push(`<tr><td class="p-num"><b>${r.nr}</b></td><td class="p-num">${r.count}</td><td class="p-num">${fmt(r.l)}</td><td class="p-num">${fmt(r.w)}</td><td>${esc(matLabel(r.t, r.mn))}</td><td>${esc(edgeText(r) || '–')}</td><td>${r.lock ? 'längs längden' : ''}</td><td>${esc(r.names.join(', '))}</td></tr>`));
+    h.push('</tbody></table><div style="font-size:8pt;margin-top:1mm">Mått i mm. Kantlistens tjocklek är redan avdragen.</div>');
+    h.push(`<h2>Sammanfattning</h2><pre style="font-family:inherit;font-size:8.5pt;white-space:pre-wrap">${esc(text.split('\n\nKAPLISTA')[0])}</pre>`);
+    el.innerHTML = h.join('');
 }

@@ -11,6 +11,9 @@ Allt körs i webbläsaren och fungerar offline när sidan har laddats en gång.
 - **Skåptyper** – bänk-, vägg- och högskåp med standardmått, sockel, mellanväggar och garderobsstång. "Hela projektet" i 3D-vyn visar alla skåp tillsammans som en vägg.
 - **Hyllhål och spår** – hyllhålsrader enligt 32-mm-systemet och bakstycke i spår, med mått i Borrschemat och på utskriften.
 - **Export till DXF och SVG** – alla skärscheman i en fil i skala 1:1, för CNC och CAD.
+- **Offert** – material, kantlist och beslag med egna inköpspriser, arbetstid, påslag och moms. Offerten skrivs ut som PDF med dina företagsuppgifter och sparas med projektet.
+- **Delningslänk** – hela projektet komprimeras in i länken, så inget konto eller någon server behövs. Offerten följer bara med om man väljer det.
+- **Beställ kapning** – en färdig beställning till en bygghandel eller kapservice, med skivor, mått, ådring och kantlist per kant. Skickas som e-post eller skrivs ut.
 - **Skivtyp** – ett frivilligt namn (t.ex. "Björkplywood") skiljer skivor med samma tjocklek åt.
 - **Projekt med flera objekt** – skåp, fristående lådor och shaker-dörrar optimeras tillsammans på samma skivor.
 - **Skåp med fronter** – dörrar (släta eller shaker) med spel och gångjärnsborrschema, eller lådfronter med färdigräknade lådlådor.
@@ -48,5 +51,6 @@ checkas in så att sidan kan publiceras som statiska filer utan byggsteg. CI kon
 | `src/listEditor.js` | Redigeraren för egen kaplista. |
 | `src/workshop.js` | Verkstadsläget. |
 | `src/export.js` | Export av skärscheman till DXF och SVG. |
+| `src/share.js` | Delningslänk: projektet komprimerat i adressens #-del. |
 | `sw.js` | Service worker för offline. Höj `VERSION` när filer ändras. |
 | `tests/core.test.js` | Enhetstester, bl.a. att varje skärschema går att såga med giljotinsnitt. |

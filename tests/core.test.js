@@ -434,3 +434,50 @@ test('äldre skåp utan typ: grunda blir väggskåp', () => {
     const pr = sanitizeProject({ items: [{ type: 'cabinet', params: { d: 350 } }, { type: 'cabinet', params: { d: 560 } }, { type: 'cabinet', params: {} }] });
     assert.deepEqual(pr.items.map(i => i.params.kind), ['wall', 'base', 'base']);
 });
+
+// --- Steg 3: offert, kapservice, delningslänk ---
+import { buildQuote, sanitizeQuote, orderText, edgeText } from '../src/core.js';
+import { encodeProject, decodeProject } from '../src/share.js';
+
+test('kantlist per kant följer med raden och vrids med delen', () => {
+    const col = collect([makeItem('list', 'L', { rows: [makeListRow({ l: 300, w: 800, t: 18, edges: { l1: true } })] })], S);
+    const r = col.rows[0];
+    assert.deepEqual([r.l, r.w, r.bl, r.bw], [799, 300, 0, 1]);   // kantlist längs 300-sidan drar av från 800; vriden blir den kortsidan
+    assert.equal(edgeText(r), '1 kortsida');
+});
+
+test('offert: påslag på material och beslag, inte på arbete, och moms på allt', () => {
+    const col = collect([makeItem('cabinet', 'A', { fronts: 'doors', shelves: 1 })], S);
+    const opt = optimize(col.rows, S);
+    const q = sanitizeQuote({ hours: 4, rate: 500, markup: 10, vat: 25, edgePrice: 0, hwPrices: { 'hinge-cliptop-110': 100 } });
+    const r = buildQuote(col, opt, q);
+    const hinge = r.lines.find(l => l.key === 'hinge-cliptop-110');
+    assert.equal(hinge.sum, 200);
+    assert.ok(r.missingPrices > 0);                      // t.ex. monteringsplattor saknar pris
+    assert.equal(r.labor, 2000);
+    assert.ok(Math.abs(r.markup - r.goods * 0.1) < 1e-9);
+    assert.ok(Math.abs(r.total - (r.goods * 1.1 + 2000) * 1.25) < 1e-6);
+});
+
+test('offert saneras och sparas med projektet', () => {
+    const q = sanitizeQuote({ hours: -2, rate: 'x', vat: 300, customer: '  Anna  ', hwPrices: { ok: 5, 'bad key!': 3, neg: -1 } });
+    assert.deepEqual([q.hours, q.rate, q.vat, q.customer, q.hwPrices], [0, 550, 100, 'Anna', { ok: 5 }]);
+    assert.equal(sanitizeProject({ items: [], quote: { hours: 3 } }).quote.hours, 3);
+});
+
+test('beställningstext innehåller skivor, kaplista och kantlist', () => {
+    const col = collect([makeItem('cabinet', 'A', { fronts: 'none', carcassName: 'Vit melamin' })], S);
+    const txt = orderText(col, optimize(col.rows, S), { project: 'Kök', name: 'Kim', delivery: 'pickup' });
+    assert.match(txt, /16 mm Vit melamin/);
+    assert.match(txt, /kantlist: 1 långsida/);
+    assert.match(txt, /Hämtas i butik/);
+});
+
+test('delningslänk: projektet kommer tillbaka oförändrat', async () => {
+    const data = { project: exampleProject(), settings: S };
+    const hash = await encodeProject(data);
+    assert.match(hash, /^p=[A-Za-z0-9_-]+$/);
+    assert.deepEqual(await decodeProject('#' + hash), JSON.parse(JSON.stringify(data)));
+    assert.equal(await decodeProject('#p=inte-giltigt'), null);
+    assert.equal(await decodeProject('#annat'), null);
+});

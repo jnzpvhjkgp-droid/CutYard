@@ -1,7 +1,8 @@
 // CutYard – gränssnitt. All beräkning sker i core.js.
 import {
     fmt, fmtKr, uid, DEFAULT_SETTINGS, SHOPS, sanitizeSettings, shopUrl,
-    matKey, matLabel, parseMatKey, normName, parsePartsTable, CABINET_KINDS, boardKey, boardLabel, boardFor, sanitizeOffcuts, sheetFor, FRAME_PROFILES, PANEL_STYLES, RAISED_PANEL_NOTE, profileTools,
+    matKey, matLabel, parseMatKey, normName, parsePartsTable, CABINET_KINDS, boardKey, boardLabel, boardFor,
+    sanitizeQuote, buildQuote, orderText, edgeText, sanitizeOffcuts, sheetFor, FRAME_PROFILES, PANEL_STYLES, RAISED_PANEL_NOTE, profileTools,
     SLIDES, slideById, ITEM_TYPES, DEFAULT_PARAMS, makeItem, sanitizeProject, exampleProject,
     buildItem, collect, optimize, buildCsv
 } from './core.js';
@@ -11,6 +12,7 @@ import { profileSvg } from './profiles.js';
 import { renderListEditor, nextRow } from './listEditor.js';
 import { openWorkshop, initWorkshop } from './workshop.js';
 import { sheetsSvg, sheetsDxf } from './export.js';
+import { encodeProject, decodeProject } from './share.js';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -442,7 +444,7 @@ function renderResults(col, opt) {
                 <td class="num text-right">${r.count}</td>
                 <td class="num text-right whitespace-nowrap">${fmt(r.l)}${r.lock ? '<span class="faint" title="Får inte vändas: ådringen ska gå längs längden"> ⇅</span>' : ''}</td>
                 <td class="num text-right">${fmt(r.w)}</td>
-                <td class="muted">${esc(r.names.join(', '))}</td>
+                <td class="muted">${esc(r.names.join(', '))}${edgeText(r) ? `<span class="block text-[11px] faint">Kantlist: ${esc(edgeText(r))}</span>` : ''}</td>
                 ${showItems ? `<td class="faint">${esc(r.items.join(', '))}</td>` : ''}
             </tr>`).join('')}`).join('')}</tbody></table>
         <p class="text-[12px] muted mt-4 leading-relaxed">Mått i mm. Kantlistens tjocklek är redan avdragen, så delarna sågas till exakt dessa mått. Numret står också på skärschemat och etiketten.${col.rows.some(r => r.lock) ? ' ⇅ betyder att delen inte får vändas eftersom ådringen ska gå längs längden.' : ''}</p>`
@@ -525,8 +527,10 @@ function renderResults(col, opt) {
     $('resDrillList').innerHTML = col.drillings.map(d => `<tr><td>${esc(d.item)}</td><td class="muted">${esc(d.door)}</td><td class="num text-right">${d.count}</td>
         <td class="num whitespace-nowrap">${fmt(d.h)} × ${fmt(d.w)}</td><td class="muted">${esc(d.side)}</td><td class="num whitespace-nowrap">${d.holes.map(fmt).join(' · ')}</td></tr>`).join('');
 
+    renderQuote(col, opt);
+
     // Antal i flikarna
-    const counts = { list: col.rows.length, sheets: opt.sheets + opt.offcutsUsed.length, hardware: hwCount + toolCount, drill: col.drillings.length + col.processing.length };
+    const counts = { list: col.rows.length, sheets: opt.sheets + opt.offcutsUsed.length, hardware: hwCount + toolCount, drill: col.drillings.length + col.processing.length, quote: 0 };
     document.querySelectorAll('[data-tab]').forEach(t => {
         const base = t.dataset.label || (t.dataset.label = t.textContent.trim());
         const c = counts[t.dataset.tab];
@@ -561,8 +565,172 @@ function boardSection(r) {
     return sec;
 }
 
+// ---------------------------------------------------------------------------
+// Offert
+// ---------------------------------------------------------------------------
+const quote = () => (state.project.quote ??= sanitizeQuote());
+const kr = n => fmtKr(n);
+function fillQuoteForm() {
+    const q = quote();
+    document.querySelectorAll('[data-q]').forEach(el => { el.value = q[el.dataset.q] ?? ''; });
+}
+function renderQuote(col = state.last?.col, opt = state.last?.opt) {
+    if (!col) return;
+    const q = quote();
+    const r = buildQuote(col, opt, q);
+    const groupTitle = { material: 'Material', hardware: 'Beslag', labor: 'Arbete', extra: 'Övrigt' };
+    let cur = '';
+    $('quoteLines').innerHTML = r.lines.map(l => {
+        const head = l.group !== cur ? ((cur = l.group), `<tr><td colspan="5" class="!pt-4 !pb-1.5 font-semibold">${groupTitle[l.group]}</td></tr>`) : '';
+        const price = l.group === 'hardware'
+            ? `<div class="w-28 ml-auto"><div class="fld-unit"><input type="number" min="0" step="any" class="fld !py-1 text-right" data-hwprice="${esc(l.key)}" value="${q.hwPrices[l.key] ?? ''}" placeholder="0" aria-label="Pris för ${esc(l.text)}"><span class="unit">kr</span></div></div>`
+            : `<span class="num">${fmt(l.price)}</span>`;
+        return `${head}<tr><td>${esc(l.text)}</td><td class="num text-right">${fmt(l.qty)}</td><td class="muted">${esc(l.unit)}</td><td class="text-right">${price}</td><td class="num text-right whitespace-nowrap">${kr(l.sum)}</td></tr>`;
+    }).join('') || '<tr><td colspan="5" class="muted">Lägg till objekt för att få en offert.</td></tr>';
+    $('quoteMissing').hidden = !r.missingPrices;
+    $('quoteMissing').textContent = `${r.missingPrices} beslag saknar pris och räknas som 0 kr. Fyll i dina inköpspriser i tabellen ovan.`;
+    const row = (label, value, strong = false) => `<dt class="${strong ? 'font-semibold' : 'muted'}">${label}</dt><dd class="num text-right ${strong ? 'font-semibold text-base' : ''}">${value}</dd>`;
+    $('quoteTotals').innerHTML = row('Material och beslag', kr(r.goods)) + row(`Påslag ${fmt(q.markup)} %`, kr(r.markup)) +
+        (r.labor ? row('Arbete', kr(r.labor)) : '') + (r.extra ? row(esc(q.extraText || 'Övrigt'), kr(r.extra)) : '') +
+        row('Summa exkl. moms', kr(r.net)) + row(`Moms ${fmt(q.vat)} %`, kr(r.vat)) +
+        `<dt class="col-span-2 border-t my-1" style="border-color: var(--line)"></dt>` + row('Att betala', kr(r.total), true);
+    state.lastQuote = r;
+}
+$('quoteForm').addEventListener('input', e => {
+    const k = e.target.dataset.q;
+    if (!k) return;
+    state.project.quote = sanitizeQuote({ ...quote(), [k]: e.target.value });
+    renderQuote();
+    persist();
+});
+$('quoteLines').addEventListener('change', e => {
+    const key = e.target.dataset.hwprice;
+    if (!key) return;
+    const hwPrices = { ...quote().hwPrices };
+    const v = e.target.value.trim().replace(',', '.');
+    if (v === '') delete hwPrices[key]; else hwPrices[key] = +v;
+    state.project.quote = sanitizeQuote({ ...quote(), hwPrices });
+    renderQuote();
+    persist();
+});
+function quoteText() {
+    const q = quote(), r = state.lastQuote;
+    const L = [`Offert – ${state.project.name}`];
+    if (q.customer) L.push(`Kund: ${q.customer}`);
+    if (q.reference) L.push(`Offertnummer: ${q.reference}`);
+    L.push(`Datum: ${today()}, giltig i ${q.validDays} dagar`, '');
+    r.lines.forEach(l => L.push(`${l.text}: ${fmt(l.qty)} ${l.unit} × ${fmt(l.price)} kr = ${kr(l.sum)}`));
+    L.push('', `Påslag ${fmt(q.markup)} %: ${kr(r.markup)}`, `Summa exkl. moms: ${kr(r.net)}`, `Moms ${fmt(q.vat)} %: ${kr(r.vat)}`, `Att betala: ${kr(r.total)}`);
+    return L.join('\n');
+}
+$('btnCopyQuote').addEventListener('click', () => copyText(quoteText(), 'Offerten kopierad'));
+$('btnPrintQuote').addEventListener('click', async () => {
+    if (!state.lastQuote?.lines.length) { toast('Offerten är tom', true); return; }
+    try {
+        const { buildQuotePrint } = await import('./print.js');
+        buildQuotePrint($('printArea'), { projectName: state.project.name, company: state.settings.company, quote: quote(), result: state.lastQuote });
+        window.print();
+    } catch (err) { console.error(err); toast('Offerten kunde inte förberedas.', true); }
+});
+
+// ---------------------------------------------------------------------------
+// Delningslänk
+// ---------------------------------------------------------------------------
+async function makeShareLink() {
+    try {
+        // Offerten innehåller inköpspriser, timpris och påslag. Den följer bara med om man väljer det.
+        const project = $('shareQuote').checked ? state.project : { ...state.project, quote: undefined };
+        const hash = await encodeProject({ project });
+        const url = `${location.href.split('#')[0]}#${hash}`;
+        $('shareUrl').value = url;
+        $('shareSize').textContent = url.length > 8000
+            ? `Länken är lång (${url.length.toLocaleString('sv-SE')} tecken) och kan kapas i vissa e-postprogram och chattar. Skicka hellre projektfilen (Spara).`
+            : `${url.length.toLocaleString('sv-SE')} tecken.`;
+        return true;
+    } catch { toast('Länken kunde inte skapas i den här webbläsaren.', true); return false; }
+}
+$('btnShare').addEventListener('click', async () => {
+    $('shareQuote').checked = false;
+    if (await makeShareLink()) { openModal('modalShare'); $('shareUrl').select(); }
+});
+$('shareQuote').addEventListener('change', makeShareLink);
+$('btnShareCopy').addEventListener('click', () => copyText($('shareUrl').value, 'Länken kopierad'));
+$('btnShareClose').addEventListener('click', () => closeModal('modalShare'));
+
+let pendingShared = null;
+async function checkSharedLink() {
+    const data = await decodeProject(location.hash);
+    if (!data?.project) return;
+    const project = sanitizeProject(data.project);
+    if (!project) return;
+    pendingShared = data;
+    $('sharedText').textContent = `Länken innehåller projektet "${project.name}" med ${project.items.length} objekt. Om du öppnar det ersätts projektet du har nu. Det går att ångra direkt efteråt, eller spara ditt projekt först med Spara.`;
+    openModal('modalShared');
+}
+const clearHash = () => history.replaceState(null, '', location.pathname + location.search);
+$('btnSharedYes').addEventListener('click', () => {
+    closeModal('modalShared');
+    clearHash();
+    const data = pendingShared; pendingShared = null;
+    // Delade inställningar tas inte över; mottagarens egna priser och skivformat gäller.
+    withUndo('Delat projekt öppnat', () => loadProjectData({ project: data.project }));
+});
+$('btnSharedNo').addEventListener('click', () => { closeModal('modalShared'); clearHash(); pendingShared = null; });
+window.addEventListener('hashchange', checkSharedLink);
+
+// ---------------------------------------------------------------------------
+// Beställ kapning
+// ---------------------------------------------------------------------------
+const ORDER_KEY = 'cutyard.v2.order';
+function orderInfo() {
+    return { project: state.project.name, name: $('orderName').value.trim(), phone: $('orderPhone').value.trim(),
+             delivery: $('orderDelivery').value, note: $('orderNote').value.trim() };
+}
+function renderOrder() {
+    const hasSheets = state.last?.col.rows.some(r => !r.board);
+    $('orderNoSheets').hidden = !!hasSheets;
+    ['btnOrderCopy', 'btnOrderPrint', 'btnOrderMail'].forEach(id => { $(id).disabled = !hasSheets; });
+    $('orderPreview').textContent = hasSheets ? orderText(state.last.col, state.last.opt, orderInfo()) : '';
+}
+$('btnOrder').addEventListener('click', () => {
+    const saved = store.get(ORDER_KEY) || {};
+    $('orderName').value = saved.name || '';
+    $('orderPhone').value = saved.phone || '';
+    $('orderDelivery').value = saved.delivery === 'delivery' ? 'delivery' : 'pickup';
+    $('orderNote').value = '';
+    $('orderTo').value = state.settings.cutServiceEmail || '';
+    renderOrder();
+    openModal('modalOrder');
+});
+$('modalOrder').addEventListener('input', () => {
+    renderOrder();
+    const o = orderInfo();
+    store.set(ORDER_KEY, { name: o.name, phone: o.phone, delivery: o.delivery });
+});
+$('btnOrderCancel').addEventListener('click', () => closeModal('modalOrder'));
+$('btnOrderCopy').addEventListener('click', () => copyText($('orderPreview').textContent, 'Beställningen kopierad'));
+$('btnOrderMail').addEventListener('click', () => {
+    const raw = $('orderTo').value.trim();
+    const to = /^[^\s@?&]+@[^\s@?&]+\.[^\s@?&]+$/.test(raw) ? raw : '';
+    const body = $('orderPreview').textContent;
+    const subject = `Beställning av kapning – ${state.project.name}`;
+    // Mejllänkar får bara vara ungefär 2 000 tecken i många program. Längre listor kopieras i stället.
+    const url = `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    if (url.length > 1900) {
+        copyText(body, 'Listan är för lång för en mejllänk. Den är kopierad, klistra in den i mejlet.');
+        location.href = `mailto:${to}?subject=${encodeURIComponent(subject)}`;
+    } else location.href = url;
+});
+$('btnOrderPrint').addEventListener('click', async () => {
+    try {
+        const { buildOrderPrint } = await import('./print.js');
+        buildOrderPrint($('printArea'), { text: $('orderPreview').textContent, col: state.last.col, info: orderInfo(), serviceName: state.settings.cutServiceName });
+        window.print();
+    } catch (err) { console.error(err); toast('Beställningen kunde inte förberedas.', true); }
+});
+
 function setTab(tab) {
-    if (!['list', 'sheets', 'hardware', 'drill'].includes(tab)) tab = 'list';
+    if (!['list', 'sheets', 'hardware', 'drill', 'quote'].includes(tab)) tab = 'list';
     state.tab = tab;
     store.set(KEYS.tab, tab);
     document.querySelectorAll('[data-tab]').forEach(t => { const on = t.dataset.tab === tab; t.classList.toggle('is-on', on); t.setAttribute('aria-selected', on); });
@@ -590,6 +758,7 @@ function snapshot() {
 function restore(snap) {
     Object.assign(state, snap);
     $('projectName').value = state.project.name;
+    fillQuoteForm();
     selectItem(state.activeId);
     if (!$('modalOffcuts').hidden) renderOffcuts();
 }
@@ -708,13 +877,14 @@ function loadProjectData(data) {
     if (data.offcuts) state.offcuts = sanitizeOffcuts(data.offcuts);
     state.project = project;
     $('projectName').value = project.name;
+    fillQuoteForm();
     selectItem(project.items[0]?.id);
 }
 
 // ---------------------------------------------------------------------------
 // Dialoger
 // ---------------------------------------------------------------------------
-const MODALS = ['modalSettings', 'modalOffcuts', 'modalNew', 'modalProfiles', 'modalPaste'];
+const MODALS = ['modalSettings', 'modalOffcuts', 'modalNew', 'modalProfiles', 'modalPaste', 'modalShare', 'modalShared', 'modalOrder'];
 let lastFocus = null;
 function openModal(id) { lastFocus = document.activeElement; $(id).hidden = false; $(id).querySelector('input,select,button')?.focus(); }
 function closeModal(id) { $(id).hidden = true; lastFocus?.focus?.(); }
@@ -728,13 +898,18 @@ function fillSettings() {
     $('setGrainLock').checked = state.settings.grainLock;
     $('setShop').innerHTML = Object.entries(SHOPS).map(([k, s]) => `<option value="${k}"${k === state.settings.shop ? ' selected' : ''}>${esc(s.name)}</option>`).join('');
     $('setShopTemplate').value = state.settings.shopTemplate;
+    $('setCompany').value = state.settings.company;
+    $('setCutName').value = state.settings.cutServiceName;
+    $('setCutEmail').value = state.settings.cutServiceEmail;
     $('setShopTemplateWrap').hidden = state.settings.shop !== 'custom';
 }
 $('setShop').addEventListener('change', () => { $('setShopTemplateWrap').hidden = $('setShop').value !== 'custom'; });
 $('btnSettings').addEventListener('click', () => { fillSettings(); openModal('modalSettings'); });
 $('btnCloseSettings').addEventListener('click', () => closeModal('modalSettings'));
 $('btnSaveSettings').addEventListener('click', () => {
-    const next = { ...state.settings, grainLock: $('setGrainLock').checked, shop: $('setShop').value, shopTemplate: $('setShopTemplate').value.trim() };
+    const next = { ...state.settings, grainLock: $('setGrainLock').checked, shop: $('setShop').value, shopTemplate: $('setShopTemplate').value.trim(),
+                   company: $('setCompany').value, cutServiceName: $('setCutName').value, cutServiceEmail: $('setCutEmail').value };
+    if (next.cutServiceEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(next.cutServiceEmail.trim())) { toast('Kapservicens e-post ser inte ut som en e-postadress.', true); return; }
     for (const [id, k] of Object.entries(SETTING_FIELDS)) next[k] = $(id).value === '' ? DEFAULT_SETTINGS[k] : $(id).value;
     if (next.shop === 'custom' && !/^https:\/\/.+\{q\}/.test(next.shopTemplate)) { toast('Länkmallen måste börja med https:// och innehålla {q}.', true); return; }
     state.settings = sanitizeSettings(next);
@@ -1070,6 +1245,8 @@ function init() {
     initWorkshop();
     setTab(store.get(KEYS.tab) || 'list');
     selectItem(state.activeId);
+    fillQuoteForm();
+    checkSharedLink();
     if (document.fonts?.ready) document.fonts.ready.then(() => recompute());
 }
 

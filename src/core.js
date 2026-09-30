@@ -30,7 +30,10 @@ export const DEFAULT_SETTINGS = {
     minOffcutL: 400,    // minsta spillbit som sparas (mm)
     minOffcutW: 150,
     shop: 'prisjakt',   // butikssökning för beslag
-    shopTemplate: ''    // egen URL-mall med {q}
+    shopTemplate: '',   // egen URL-mall med {q}
+    company: '',        // företagsuppgifter överst på offerten (fritext, flera rader)
+    cutServiceName: '', // kapservice som beställningar skickas till
+    cutServiceEmail: ''
 };
 
 export const SHOPS = {
@@ -49,6 +52,9 @@ export function sanitizeSettings(s) {
         else if (typeof s[k] === 'string') out[k] = s[k];
     }
     if (!SHOPS[out.shop]) out.shop = DEFAULT_SETTINGS.shop;
+    out.company = out.company.slice(0, 400);
+    out.cutServiceName = out.cutServiceName.trim().slice(0, 80);
+    out.cutServiceEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(out.cutServiceEmail.trim()) ? out.cutServiceEmail.trim() : '';
     out.kerf = clamp(out.kerf, 0, 10);
     out.trim = clamp(out.trim, 0, 50);
     if (out.sheetL < 300) out.sheetL = DEFAULT_SETTINGS.sheetL;
@@ -612,7 +618,89 @@ export function sanitizeProject(p) {
             params: sanitizeParams(it.type, it.params),
             excluded: isObj(it.excluded) ? Object.fromEntries(Object.entries(it.excluded).filter(([, v]) => v === true)) : {}
         }));
-    return { name: typeof p.name === 'string' && p.name.trim() ? p.name.trim().slice(0, 80) : 'Mitt projekt', items };
+    return { name: typeof p.name === 'string' && p.name.trim() ? p.name.trim().slice(0, 80) : 'Mitt projekt', items, quote: sanitizeQuote(p.quote) };
+}
+
+// ---------------------------------------------------------------------------
+// Offert och kalkyl
+// ---------------------------------------------------------------------------
+export const DEFAULT_QUOTE = {
+    customer: '', reference: '', validDays: 30,
+    hours: 0, rate: 550,        // arbetstid (h) och timpris (kr, exkl. moms)
+    markup: 15,                 // påslag på material och beslag (%)
+    edgePrice: 8,               // kantlist (kr per meter)
+    extra: 0, extraText: '',    // övrigt, t.ex. ytbehandling eller frakt
+    vat: 25,                    // moms (%)
+    hwPrices: {}                // pris per beslag (kr/st eller kr/par), nyckel = beslagets nyckel
+};
+export function sanitizeQuote(q) {
+    const out = { ...DEFAULT_QUOTE, hwPrices: {} };
+    if (!isObj(q)) return out;
+    for (const [k, def] of Object.entries(DEFAULT_QUOTE)) {
+        if (k === 'hwPrices') continue;
+        if (typeof def === 'number') { const v = +q[k]; if (q[k] !== '' && q[k] != null && Number.isFinite(v) && v >= 0) out[k] = Math.min(v, 1e7); }
+        else if (typeof q[k] === 'string') out[k] = q[k].trim().slice(0, k === 'extraText' ? 80 : 120);
+    }
+    out.vat = Math.min(out.vat, 100);
+    if (isObj(q.hwPrices)) for (const [k, v] of Object.entries(q.hwPrices)) if (/^[\w.-]{1,60}$/.test(k) && v !== '' && v != null && Number.isFinite(+v) && +v >= 0) out.hwPrices[k] = +v;
+    return out;
+}
+
+/** Räknar fram offertens rader. Påslaget läggs på material, kantlist och beslag, inte på arbetet. */
+export function buildQuote(col, opt, q) {
+    const lines = [];
+    opt.materials.forEach(m => {
+        if (m.sheets) lines.push({ group: 'material', text: `Skiva ${matLabel(m.sheet.t, m.sheet.name)}, ${fmt(m.sheet.L)} × ${fmt(m.sheet.W)} mm`, qty: m.sheets, unit: 'st', price: m.sheet.price });
+    });
+    (opt.linear || []).forEach(r => {
+        const meters = r.count * r.stock.L / 1000;
+        lines.push({ group: 'material', text: `Virke ${boardLabel(r.stock.t, r.stock.w, r.stock.name)}, ${r.count} × ${fmt(r.stock.L)} mm`, qty: round1(meters), unit: 'm', price: r.stock.price });
+    });
+    if (col.edgeMeters > 0) lines.push({ group: 'material', text: 'Kantlist inkl. 10 % marginal', qty: Math.ceil(col.edgeMeters * 1.1 * 10) / 10, unit: 'm', price: q.edgePrice });
+    col.hardware.forEach(h => lines.push({ group: 'hardware', key: h.key, text: h.name, qty: h.qty, unit: h.unit, price: q.hwPrices[h.key] ?? 0, missing: q.hwPrices[h.key] == null }));
+    if (q.hours > 0) lines.push({ group: 'labor', text: 'Arbete', qty: q.hours, unit: 'h', price: q.rate });
+    if (q.extra > 0) lines.push({ group: 'extra', text: q.extraText || 'Övrigt', qty: 1, unit: 'st', price: q.extra });
+    lines.forEach(l => { l.sum = l.qty * l.price; });
+    const sumOf = g => lines.filter(l => g.includes(l.group)).reduce((a, l) => a + l.sum, 0);
+    const goods = sumOf(['material', 'hardware']);
+    const markup = goods * q.markup / 100;
+    const net = goods + markup + sumOf(['labor', 'extra']);
+    const vat = net * q.vat / 100;
+    return {
+        lines, goods, markup, labor: sumOf(['labor']), extra: sumOf(['extra']), net, vat, total: net + vat,
+        missingPrices: lines.filter(l => l.missing).length
+    };
+}
+
+// ---------------------------------------------------------------------------
+// Beställning till kapservice (text för mejl)
+// ---------------------------------------------------------------------------
+export const edgeText = r => {
+    const parts = [];
+    if (r.bl) parts.push(`${r.bl} långsida${r.bl > 1 ? 'or' : ''}`);
+    if (r.bw) parts.push(`${r.bw} kortsida${r.bw > 1 ? 'or' : ''}`);
+    return parts.join(' + ');
+};
+export function orderText(col, opt, o) {
+    const L = [];
+    L.push(`Beställning av kapning – ${o.project}`, '');
+    if (o.name) L.push(`Beställare: ${o.name}`);
+    if (o.phone) L.push(`Telefon: ${o.phone}`);
+    L.push(`Leverans: ${o.delivery === 'delivery' ? 'Leverans' : 'Hämtas i butik'}`);
+    if (o.note) L.push(`Meddelande: ${o.note}`);
+    L.push('', 'SKIVOR (uppskattat antal enligt CutYards optimering)');
+    opt.materials.forEach(m => { if (m.sheets) L.push(`- ${m.sheets} st ${matLabel(m.sheet.t, m.sheet.name)} ${fmt(m.sheet.L)} × ${fmt(m.sheet.W)} mm`); });
+    const sheetRows = col.rows.filter(r => !r.board);
+    let cur = '';
+    L.push('', 'KAPLISTA (mått i mm, längd × bredd, kantlistens tjocklek är redan avdragen)');
+    sheetRows.forEach(r => {
+        const k = matLabel(r.t, r.mn);
+        if (k !== cur) { cur = k; L.push('', k); }
+        L.push(`#${r.nr}  ${r.count} st  ${fmt(r.l)} × ${fmt(r.w)}${r.lock ? '  ådring längs längden' : ''}${edgeText(r) ? `  kantlist: ${edgeText(r)}` : ''}  (${r.names.join(', ')})`);
+    });
+    if (col.edgeMeters > 0) L.push('', `Kantlist totalt: ca ${fmt(Math.ceil(col.edgeMeters * 1.1 * 10) / 10)} m inkl. 10 % marginal`);
+    L.push('', 'Skapad med CutYard');
+    return L.join('\n');
 }
 
 export function exampleProject() {
@@ -622,7 +710,8 @@ export function exampleProject() {
             makeItem('cabinet', 'Bänkskåp med lådor', { plinthH: 100 }),
             { ...makeItem('cabinet', 'Väggskåp', { kind: 'wall', w: 800, h: 700, d: 350, shelves: 2, fronts: 'doors', frontStyle: 'shaker' }), qty: 2 },
             makeItem('cabinet', 'Bänkskåp med dörr', { w: 400, h: 720, d: 560, shelves: 1, fronts: 'doors', plinthH: 100 })
-        ]
+        ],
+        quote: sanitizeQuote()
     };
 }
 
@@ -656,19 +745,20 @@ export function collect(items, S) {
             const board = part.stock === 'board';
             // Virke sågas alltid på längden, så där är l alltid längden på brädan.
             const lock = !board && (part.grain === 'fixed' || (part.grain === 'visible' && (S.grainLock || item.params.grain === true)));
-            if (!lock && !board && w > l) [l, w] = [w, l];
+            let bl = band.l, bw = band.w;               // antal kantlistade långsidor och kortsidor
+            if (!lock && !board && w > l) { [l, w] = [w, l]; [bl, bw] = [bw, bl]; }
             // "Låda 2: Lådsida vänster" → "Lådsida vänster" så att listan inte upprepar sig
-            pieces.push({ name: part.name.replace(/^[^:]+: /, ''), item: item.name, t: round1(part.t), mn: normName(part.mn), l: round1(l), w: round1(w), lock, board, edgeLen, count: item.qty * (part.qty || 1) });
+            pieces.push({ name: part.name.replace(/^[^:]+: /, ''), item: item.name, t: round1(part.t), mn: normName(part.mn), l: round1(l), w: round1(w), lock, board, bl, bw, edgeLen, count: item.qty * (part.qty || 1) });
         }
     }
     const rows = [];
     for (const p of pieces) {
-        const ex = rows.find(r => r.board === p.board && r.t === p.t && matKey(r.t, r.mn) === matKey(p.t, p.mn) && r.l === p.l && r.w === p.w && r.lock === p.lock);
+        const ex = rows.find(r => r.board === p.board && r.bl === p.bl && r.bw === p.bw && r.t === p.t && matKey(r.t, r.mn) === matKey(p.t, p.mn) && r.l === p.l && r.w === p.w && r.lock === p.lock);
         if (ex) {
             ex.count += p.count; ex.edgeLen += p.edgeLen * p.count;
             if (!ex.names.includes(p.name)) ex.names.push(p.name);
             if (!ex.items.includes(p.item)) ex.items.push(p.item);
-        } else rows.push({ t: p.t, mn: p.mn, l: p.l, w: p.w, lock: p.lock, board: p.board, count: p.count, edgeLen: p.edgeLen * p.count, names: [p.name], items: [p.item] });
+        } else rows.push({ t: p.t, mn: p.mn, l: p.l, w: p.w, lock: p.lock, board: p.board, bl: p.bl, bw: p.bw, count: p.count, edgeLen: p.edgeLen * p.count, names: [p.name], items: [p.item] });
     }
     rows.sort((a, b) => a.board - b.board || b.t - a.t || (a.board ? b.w - a.w : 0) || a.mn.localeCompare(b.mn, 'sv') || b.l - a.l || b.w - a.w);
     rows.forEach((r, i) => { r.nr = i + 1; });
