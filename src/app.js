@@ -496,7 +496,7 @@ function renderResults(col, opt) {
         if (r.oversize.length) warnings.push(`${r.oversize.length} del(ar) i ${matLabel(r.sheet.t, r.sheet.name)} är större än skivan: ${[...new Set(r.oversize.map(p => `#${p.nr} ${fmt(p.l)}×${fmt(p.w)}`))].join(', ')} mm.`);
     });
     opt.linear.forEach(r => {
-        if (r.oversize.length) warnings.push(`${r.oversize.length} del(ar) i virket ${boardLabel(r.stock.t, r.stock.w, r.stock.name)} är längre än brädan (${fmt(r.stock.L)} mm minus kapning i ändarna): ${[...new Set(r.oversize.map(p => `#${p.nr} ${fmt(p.l)}`))].join(', ')} mm. Ange en längre bräda under Skärscheman.`);
+        if (r.oversize.length) warnings.push(`${r.oversize.length} del(ar) i virket ${boardLabel(r.stock.t, r.stock.w, r.stock.name)} är längre än brädan (${fmt(r.stock.L)} mm minus kapning i ändarna): ${[...new Set(r.oversize.map(p => `#${p.nr} ${fmt(p.l)}`))].join(', ')} mm. Ange en längre bräda under Skärschema.`);
     });
     $('resWarn').hidden = !warnings.length;
     $('resWarn').innerHTML = warnings.map(w => `<div>${esc(w)}</div>`).join('');

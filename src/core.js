@@ -568,7 +568,7 @@ export const ITEM_TYPES = {
     cabinet: { label: 'Skåp', build: buildCabinet },
     drawer: { label: 'Lådor', build: buildDrawer },
     shaker: { label: 'Shaker-dörrar', build: buildShaker },
-    list: { label: 'Egen kaplista', build: buildList }
+    list: { label: 'Fria delar', build: buildList }
 };
 
 // ---------------------------------------------------------------------------
